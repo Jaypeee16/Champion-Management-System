@@ -40,7 +40,7 @@ class ProfileView(ctk.CTkFrame):
 
         # User Info Text
         ctk.CTkLabel(self.left_card, text=self.user_info['full_name'], font=("Inter", 18, "bold"), text_color="#1A1A1A").pack(pady=(20, 0))
-        ctk.CTkLabel(self.left_card, text=self.user_info['role'], font=("Inter", 12), text_color="gray").pack()
+        ctk.CTkLabel(self.left_card, text=self.user_info['role'], font=("Inter", 12), text_color="green").pack()
 
         # Separator Line
         ctk.CTkFrame(self.left_card, height=1, fg_color="#E0E0E0").pack(fill="x", padx=30, pady=20)
