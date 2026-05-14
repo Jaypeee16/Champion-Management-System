@@ -100,10 +100,22 @@ class DashboardApp(ctk.CTkToplevel):
         self.user_frame.pack(side="right", padx=15, pady=5)
         self.user_frame.bind("<Button-1>", lambda e: self.show_frame("Profile"))
 
-        self.user_label = ctk.CTkLabel(self.user_frame, text=f"{self.user_info['full_name']}\n{self.user_info['role']}", 
-                                       font=("Inter", 12, "bold"), text_color="black", justify="right")
-        self.user_label.pack(side="right", padx=(10, 0))
-        self.user_label.bind("<Button-1>", lambda e: self.show_frame("Profile"))
+       # Create a tiny invisible frame to stack the texts properly
+        self.user_text_frame = ctk.CTkFrame(self.user_frame, fg_color="transparent", cursor="hand2")
+        self.user_text_frame.pack(side="right", padx=(10, 0))
+        self.user_text_frame.bind("<Button-1>", lambda e: self.show_frame("Profile"))
+
+        # The Name Label (Black)
+        self.user_name_label = ctk.CTkLabel(self.user_text_frame, text=f"{self.user_info['full_name']}", 
+                                       font=("Inter", 14, "bold"), text_color="black")
+        self.user_name_label.pack(anchor="w") # 'w' forces it to align perfectly LEFT
+        self.user_name_label.bind("<Button-1>", lambda e: self.show_frame("Profile"))
+
+        # The Role Label (Green)
+        self.user_role_label = ctk.CTkLabel(self.user_text_frame, text=f"{self.user_info['role']}", 
+                                       font=("Inter", 12, "bold"), text_color="#2ECC71")
+        self.user_role_label.pack(anchor="w") # 'w' forces it to align perfectly LEFT
+        self.user_role_label.bind("<Button-1>", lambda e: self.show_frame("Profile"))
 
         self.profile_pic_label = ctk.CTkLabel(self.user_frame, text="")
         self.profile_pic_label.pack(side="right")
@@ -112,7 +124,8 @@ class DashboardApp(ctk.CTkToplevel):
         self.refresh_topbar()
 
     def refresh_topbar(self):
-        self.user_label.configure(text=f"{self.user_info['full_name']}\n{self.user_info['role']}")
+        self.user_name_label.configure(text=f"{self.user_info['full_name']}")
+        self.user_role_label.configure(text=f"{self.user_info['role']}")
         pic_path = os.path.join(os.path.dirname(__file__), "assets", "profiles", f"{self.user_info['employee_id']}.png")
         if not os.path.exists(pic_path):
             pic_path = os.path.join(os.path.dirname(__file__), "assets", "login_logo.png") 
