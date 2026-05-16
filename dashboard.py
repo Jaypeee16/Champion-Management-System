@@ -4,6 +4,7 @@ import sys
 from tkinter import messagebox
 from datetime import datetime
 from PIL import Image
+from database import get_connection
 
 # Data Visualization
 import matplotlib.pyplot as plt
@@ -18,13 +19,16 @@ from views.borrowing import BorrowingView
 class DashboardApp(ctk.CTkToplevel): 
     def __init__(self, parent, user_info):
         
-        # 2. Add master=parent inside the super() call
         super().__init__(master=parent) 
 
         self.user_info = user_info 
         self.title("Champion Fine Tooling - Automated Management System")
         self.geometry("1350x850")
         self.configure(fg_color="#F4F6F8") 
+        
+        # --- ADD THIS LINE HERE ---
+        self.protocol("WM_DELETE_WINDOW", self.confirm_logout)
+        # --------------------------
         
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(1, weight=1)
@@ -74,7 +78,7 @@ class DashboardApp(ctk.CTkToplevel):
 
         exit_btn = ctk.CTkButton(self.sidebar_frame, text="Exit", anchor="w", fg_color="transparent",
                                 hover_color="#8B0000", text_color="white", font=("Inter", 13, "bold"),
-                                command=self.confirm_exit)
+                                command=self.confirm_logout)
         exit_btn.pack(side="bottom", fill="x", pady=20, padx=10)
 
     def build_topbar(self):
@@ -158,7 +162,6 @@ class DashboardApp(ctk.CTkToplevel):
         if self.current_frame is not None:
             self.current_frame.destroy()
 
-        # REMOVED self.db_conn passing to fix the crash!
         if page_name == "Profile":
             self.current_frame = ProfileView(self.main_container, self.user_info, self)
         elif page_name == "Products / Inventory":
@@ -173,44 +176,109 @@ class DashboardApp(ctk.CTkToplevel):
             self.current_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
             ctk.CTkLabel(self.current_frame, text=f"{page_name.upper()} MODULE", font=("Inter", 20), text_color="gray").pack(expand=True)
 
-        self.current_frame.grid(row=0, column=0, sticky="nsew")
+        # THE FIX: This perfectly centers the frame and forces it to fill the safe area
+        self.current_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=1.0, relheight=1.0)
+
+    def get_live_metrics(self):
+        metrics = {"total_types": 0, "available_qty": 0, "borrowed_qty": 0, "employees": 0}
+        activities = []
+        chart_data = [0, 0, 0, 0] # Maps to: Good, Needs Repair, Damaged, Lost
+
+        conn = get_connection()
+        if not conn: return metrics, activities, chart_data
+
+        try:
+            cursor = conn.cursor(dictionary=True)
+            
+            # 1. Total Distinct Tool Profiles (e.g., 2 Types of tools)
+            cursor.execute("SELECT COUNT(*) as cnt FROM tool WHERE is_archived = 0")
+            metrics["total_types"] = cursor.fetchone()["cnt"] or 0
+            
+            # 2. Available & Borrowed Physical Pieces (e.g., 273 actual items)
+            cursor.execute("SELECT SUM(quantity_available) as avail, SUM(quantity_total - quantity_available) as borrowed FROM inventory i JOIN tool t ON i.tool_id = t.tool_id WHERE t.is_archived = 0")
+            inv = cursor.fetchone()
+            if inv:
+                metrics["available_qty"] = int(inv["avail"] or 0)
+                metrics["borrowed_qty"] = int(inv["borrowed"] or 0)
+                
+            # 3. Total Registered Employees
+            cursor.execute("SELECT COUNT(*) as cnt FROM user")
+            metrics["employees"] = cursor.fetchone()["cnt"] or 0
+            
+            # 4. The "Omni-Log" Query: Merges Transactions, Additions, and Archives with Time!
+            cursor.execute("""
+                SELECT DATE_FORMAT(DATE_ADD(raw_date, INTERVAL 8 HOUR), '%Y-%m-%d %h:%i %p') as date, action, item, user FROM (
+                    SELECT borrow_date as raw_date, type as action, t.name as item, u.full_name as user
+                    FROM transaction tr JOIN tool t ON tr.tool_id = t.tool_id JOIN user u ON tr.user_id = u.user_id
+                    UNION ALL
+                    SELECT date_acquired as raw_date, 'Added' as action, name as item, 'Admin' as user
+                    FROM tool WHERE is_archived = 0
+                    UNION ALL
+                    SELECT archived_at as raw_date, 'Archived' as action, name as item, 'Admin' as user
+                    FROM tool WHERE is_archived = 1 AND archived_at IS NOT NULL
+                ) as combined_log
+                ORDER BY raw_date DESC LIMIT 5
+            """)
+            for row in cursor.fetchall():
+                activities.append((row["date"], row["action"], row["item"], row["user"]))
+                
+            # 5. Chart Metrics
+            cursor.execute("SELECT `condition`, COUNT(*) as cnt FROM tool WHERE is_archived = 0 GROUP BY `condition`")
+            cond_map = {"Good": 0, "Needs Repair": 1, "Damaged": 2, "Lost": 3}
+            for row in cursor.fetchall():
+                c = row["condition"]
+                if c in cond_map:
+                    chart_data[cond_map[c]] = row["cnt"]
+                    
+        except Exception as e:
+            print(f"Dashboard Sync Error: {e}")
+        finally:
+            if conn.is_connected(): cursor.close(); conn.close()
+                
+        return metrics, activities, chart_data
 
     def create_home_dashboard(self):
-        frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        ctk.CTkLabel(frame, text="DASHBOARD", font=("Inter", 24, "bold"), text_color="#1A1A1A").pack(anchor="w", pady=(0, 20))
+        # UI FIX: Made it a horizontal scrollable frame so it never squishes!
+        frame = ctk.CTkScrollableFrame(self.main_container, fg_color="transparent", orientation="horizontal")
         
-        cards_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        # A container inside the scrollable frame to hold everything nicely
+        inner_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        inner_frame.pack(fill="both", expand=True)
+        
+        ctk.CTkLabel(inner_frame, text="DASHBOARD", font=("Inter", 24, "bold"), text_color="#1A1A1A").pack(anchor="w", pady=(0, 20))
+        
+        metrics, activities, chart_data = self.get_live_metrics()
+        
+        cards_frame = ctk.CTkFrame(inner_frame, fg_color="transparent")
         cards_frame.pack(fill="x", pady=(0, 20))
 
-        # --- DASHBOARD CARD COLORS ---
-        # Tuple format: (Title, Value, Color HEX)
+        # Changed Labels to reflect Reality (Quantity vs Profiles)
         data = [
-            ("Total Tools", "245", "#1E4528"),       # Dark Green
-            ("Available Tools", "198", "#2ECC71"),   # Light Green
-            ("Borrowed", "47", "#F1C40F"),           # Yellow
-            ("Registered Employees", "86", "#D35400") # Orange
+            ("Unique Tool Profiles", str(metrics["total_types"]), "#1E4528"),       
+            ("Total Physical Items", str(metrics["available_qty"]), "#2ECC71"),   
+            ("Items Borrowed", str(metrics["borrowed_qty"]), "#F1C40F"),           
+            ("Registered Employees", str(metrics["employees"]), "#D35400") 
         ]
         
         for i, (title, val, color) in enumerate(data):
-            cards_frame.grid_columnconfigure(i, weight=1)
-            # Color the entire frame
+            # minsize=220 prevents the cards from shrinking and forces the scrollbar
+            cards_frame.grid_columnconfigure(i, weight=1, minsize=220) 
             card = ctk.CTkFrame(cards_frame, fg_color=color, corner_radius=10, height=100)
             card.grid(row=0, column=i, padx=5, sticky="ew")
             card.pack_propagate(False)
             
-            # Contrast logic: Black text for yellow, white text for dark colors
             txt_color = "black" if color == "#F1C40F" else "white"
-            
             ctk.CTkLabel(card, text=val, font=("Inter", 28, "bold"), text_color=txt_color).pack(anchor="w", padx=20, pady=(20, 0))
             ctk.CTkLabel(card, text=title, font=("Inter", 12), text_color=txt_color).pack(anchor="w", padx=20)
 
-        # Bottom Area: Table and Analytics
-        bottom_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        bottom_frame = ctk.CTkFrame(inner_frame, fg_color="transparent")
         bottom_frame.pack(fill="both", expand=True)
-        bottom_frame.grid_columnconfigure(0, weight=1)
-        bottom_frame.grid_columnconfigure(1, weight=1)
+        
+        # minsize prevents the table and chart from shrinking and forces the scrollbar
+        bottom_frame.grid_columnconfigure(0, weight=2, minsize=550) 
+        bottom_frame.grid_columnconfigure(1, weight=1, minsize=400) 
 
-        # Left: Recent Activity Table
+        # Left: Live Recent Activity Table
         activity_card = ctk.CTkFrame(bottom_frame, fg_color="white", corner_radius=10)
         activity_card.grid(row=0, column=0, sticky="nsew", padx=(5, 10))
         ctk.CTkLabel(activity_card, text="Recent Activity", font=("Inter", 14, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=20)
@@ -218,17 +286,14 @@ class DashboardApp(ctk.CTkToplevel):
         header_frame = ctk.CTkFrame(activity_card, fg_color="#1E4528", corner_radius=5, height=35)
         header_frame.pack(fill="x", padx=20)
         header_frame.pack_propagate(False)
-        headers = ["Date", "Action", "Item", "User"]
-        for col, text in enumerate(headers):
+        for col, text in enumerate(["Date & Time", "Action", "Item", "User"]):
             header_frame.grid_columnconfigure(col, weight=1)
             ctk.CTkLabel(header_frame, text=text, font=("Inter", 11, "bold"), text_color="white").grid(row=0, column=col, padx=10, pady=5, sticky="w")
 
-        dummy_activity = [
-            ("2026-05-02 09:23", "Borrowed", "3/8 Drill Bit", "J. Santos"),
-            ("2026-05-02 08:15", "Returned", "Hammer 1kg", "M. Cruz"),
-            ("2026-05-01 16:45", "Added", "Caliper 150mm", "Admin")
-        ]
-        for i, row_data in enumerate(dummy_activity):
+        if not activities:
+            activities = [("-", "No recent activity recorded.", "-", "-")]
+
+        for i, row_data in enumerate(activities):
             row_frame = ctk.CTkFrame(activity_card, fg_color="#F9FAFB" if i % 2 == 0 else "white", height=35)
             row_frame.pack(fill="x", padx=20)
             row_frame.pack_propagate(False)
@@ -239,23 +304,21 @@ class DashboardApp(ctk.CTkToplevel):
         # Right: Matplotlib Analytics Visualization
         analytics_card = ctk.CTkFrame(bottom_frame, fg_color="white", corner_radius=10)
         analytics_card.grid(row=0, column=1, sticky="nsew", padx=(10, 5))
-        ctk.CTkLabel(analytics_card, text="Tool Availability Metrics", font=("Inter", 14, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(20, 5))
+        ctk.CTkLabel(analytics_card, text="Tool Condition Metrics", font=("Inter", 14, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(20, 5))
 
-        self.embed_chart(analytics_card)
+        self.embed_chart(analytics_card, chart_data)
         
         return frame
 
-    def embed_chart(self, parent_frame):
-        # Create a Matplotlib Figure
+    def embed_chart(self, parent_frame, chart_data):
         fig, ax = plt.subplots(figsize=(5, 3), dpi=100)
         fig.patch.set_facecolor('#FFFFFF')
         ax.set_facecolor('#FFFFFF')
 
-        categories = ['Active', 'Borrowed', 'Maintenance', 'Archived']
-        counts = [198, 47, 12, 5]
+        categories = ['Good', 'Repair', 'Damaged', 'Lost']
         colors = ['#2ECC71', '#F1C40F', '#E67E22', '#95A5A6']
 
-        bars = ax.bar(categories, counts, color=colors, width=0.6)
+        bars = ax.bar(categories, chart_data, color=colors, width=0.6)
         
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
@@ -264,10 +327,18 @@ class DashboardApp(ctk.CTkToplevel):
         
         for bar in bars:
             yval = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2, yval + 2, int(yval), ha='center', va='bottom', fontdict={'family': 'sans-serif', 'weight': 'bold', 'color': '#333333'})
+            ax.text(bar.get_x() + bar.get_width()/2, yval + (max(chart_data)*0.05 + 0.1) if max(chart_data) > 0 else yval + 0.1, 
+                    int(yval), ha='center', va='bottom', fontdict={'family': 'sans-serif', 'weight': 'bold', 'color': '#333333'})
 
         plt.tight_layout()
 
         canvas = FigureCanvasTkAgg(fig, master=parent_frame)
         canvas.draw()
         canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=(0, 20))
+
+    def on_dashboard_closing(self):
+        """Returns to login screen when the Dashboard 'X' button is clicked."""
+        if messagebox.askyesno("Log Out", "Are you sure you want to log out and return to the login page?"):
+            self.master.deiconify() 
+            self.destroy()
+    
