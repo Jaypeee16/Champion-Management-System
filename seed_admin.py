@@ -1,46 +1,56 @@
 import bcrypt
 from database import get_connection
 
-def create_first_admin():
+def seed_admin():
+    print("Connecting to the database...")
     conn = get_connection()
     if not conn:
-        print("Could not connect to database.")
+        print("❌ Failed to connect to the database.")
         return
 
-    cursor = conn.cursor()
-    
-    # 1. Create the password bytes
-    password = b"admin123"
-    
-    # 2. Generate the salt and hash (these remain as raw bytes)
-    salt = bcrypt.gensalt()
-    hashed_password_bytes = bcrypt.hashpw(password, salt)
-    
-    # 3. Decode ONLY right before inserting into the VARCHAR column
-    hashed_password_string = hashed_password_bytes.decode('utf-8')
-
-    sql = """
-    INSERT INTO User (employee_id, full_name, email, role, password_hash)
-    VALUES (%s, %s, %s, %s, %s)
-    """
-    values = ('admin', 'System Administrator', 'admin@champion.com', 'Admin', hashed_password_string)
-    
     try:
-        cursor.execute(sql, values)
+        cursor = conn.cursor()
+        
+        # Default Admin Credentials
+        emp_id = "admin"
+        name = "System Admin"
+        raw_password = "password123"
+        role = "Admin"
+
+        print("Generating secure password hash...")
+        hashed_pw = bcrypt.hashpw(raw_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        # Check if the admin account already exists
+        cursor.execute("SELECT * FROM user WHERE employee_id = %s", (emp_id,))
+        existing_user = cursor.fetchone()
+
+        if existing_user:
+            print(f"⚠️ Account '{emp_id}' found! Forcing password reset...")
+            # FORCE UPDATE THE PASSWORD
+            cursor.execute("UPDATE user SET password_hash = %s WHERE employee_id = %s", (hashed_pw, emp_id))
+            print("✅ Password successfully overridden!")
+        else:
+            print(f"Injecting new '{emp_id}' account...")
+            # INSERT NEW ACCOUNT
+            cursor.execute("""
+                INSERT INTO user (employee_id, full_name, password_hash, role)
+                VALUES (%s, %s, %s, %s)
+            """, (emp_id, name, hashed_pw, role))
+            print("✅ Account injected successfully!")
+
         conn.commit()
-        print("Success! Admin created.")
-        print("Username: admin | Password: admin123")
-        
-        # Verify exactly what was saved to the database
-        cursor.execute("SELECT password_hash FROM User WHERE employee_id = 'admin'")
-        saved_hash = cursor.fetchone()[0]
-        print(f"DEBUG - Hash saved to DB: {saved_hash}")
-        
+        print("-" * 30)
+        print(f"Employee ID (Username): {emp_id}")
+        print(f"Password:               {raw_password}")
+        print("-" * 30)
+        print("You can now log in to the system!")
+
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"\n❌ Database Error: {e}")
     finally:
-        cursor.close()
-        conn.close()
+        if conn.is_connected():
+            cursor.close()
+            conn.close()
 
 if __name__ == "__main__":
-    create_first_admin()
+    seed_admin()

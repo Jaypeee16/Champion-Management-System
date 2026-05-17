@@ -1,12 +1,12 @@
 import customtkinter as ctk
 from tkinter import messagebox
 import qrcode
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont 
 from database import get_connection
 import cv2
-from pyzbar.pyzbar import decode
-import os         # ADD THIS
-import tempfile   # ADD THIS
+from pyzbar.pyzbar import decode, ZBarSymbol
+import os
+import tempfile 
 
 class TaggingView(ctk.CTkFrame):
     def __init__(self, parent):
@@ -22,18 +22,16 @@ class TaggingView(ctk.CTkFrame):
         main_frame = ctk.CTkFrame(self, fg_color="white", corner_radius=10)
         main_frame.grid(row=0, column=0, padx=10, pady=0, sticky="nsew")
 
-        # Header
         header_row = ctk.CTkFrame(main_frame, fg_color="transparent")
         header_row.pack(fill="x", padx=20, pady=(20, 10))
         
         ctk.CTkLabel(header_row, text="Tag Management Hub", font=("Inter", 20, "bold"), text_color="#1A1A1A").pack(side="left")
         ctk.CTkLabel(header_row, text="Click a tool to assign a tag, or use the scanner to test existing tags.", font=("Inter", 12), text_color="gray").pack(side="left", padx=15, pady=(5,0))
 
-        # Search & Scan Bar
         search_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         search_frame.pack(fill="x", padx=20, pady=(10, 20))
         
-        self.search_entry = ctk.CTkEntry(search_frame, placeholder_text="Search Tool Name or Tag ID...", width=300)
+        self.search_entry = ctk.CTkEntry(search_frame, placeholder_text="Universal Search (PID, Name, Cat, Sup, Tag)...", width=350)
         self.search_entry.pack(side="left")
         self.search_entry.bind("<Return>", lambda e: self.perform_search())
 
@@ -43,27 +41,23 @@ class TaggingView(ctk.CTkFrame):
         ctk.CTkButton(search_frame, text="Search", width=80, fg_color="#1E4528", hover_color="#14301C", font=("Inter", 12, "bold"), command=self.perform_search).pack(side="left")
         ctk.CTkButton(search_frame, text="↻ Reset", width=70, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 12, "bold"), command=self.reset_search).pack(side="left", padx=10)
 
-        # NEW INDEPENDENT SCANNER BUTTON
         self.scan_test_btn = ctk.CTkButton(search_frame, text="📷 Scan & Test QR", width=140, fg_color="#3498DB", hover_color="#2980B9", font=("Inter", 12, "bold"), command=self.open_test_scanner)
         self.scan_test_btn.pack(side="right", padx=10)
 
-        # Table Header
         table_header = ctk.CTkFrame(main_frame, fg_color="#1E4528", corner_radius=5, height=40)
         table_header.pack(fill="x", padx=20)
         table_header.pack_propagate(False)
 
-        self.headers = ["Tool ID", "Product Name", "Category", "Supplier", "Assigned Tag ID"]
-        self.weights = [1, 3, 2, 2, 2]
+        # UI FIX: Swapped Description for Category and Supplier!
+        self.headers = ["PID", "Name", "Category", "Supplier", "Qty", "Location", "Status", "Tag ID"]
+        self.weights = [1, 2, 2, 2, 1, 2, 1, 2]
 
         for col, (text, weight) in enumerate(zip(self.headers, self.weights)):
             table_header.grid_columnconfigure(col, weight=weight)
             ctk.CTkLabel(table_header, text=text, font=("Inter", 12, "bold"), text_color="white").grid(row=0, column=col, padx=10, pady=10, sticky="w")
 
-        # Scrollable Data Area
         self.data_scroll = ctk.CTkScrollableFrame(main_frame, fg_color="transparent")
         self.data_scroll.pack(fill="both", expand=True, padx=20, pady=(10, 20))
-
-    # --- DATABASE METHODS ---
 
     def load_tagging_data(self, query="", filter_type="All Tools"):
         for widget in self.data_scroll.winfo_children():
@@ -75,17 +69,24 @@ class TaggingView(ctk.CTkFrame):
         try:
             cursor = conn.cursor()
             
-            base_query = "SELECT tool_id, name, category, supplier, IFNULL(tag_id, 'Unassigned') FROM tool WHERE is_archived = 0"
+            base_query = """
+                SELECT t.tool_id, t.name, IFNULL(t.category, 'Uncategorized'), IFNULL(t.supplier, 'N/A'), 
+                       IFNULL(i.quantity_available, 0), IFNULL(t.location, 'N/A'), t.condition, IFNULL(t.tag_id, 'Unassigned'),
+                       t.description, t.price
+                FROM tool t
+                LEFT JOIN inventory i ON t.tool_id = i.tool_id
+                WHERE t.is_archived = 0
+            """
             params = []
 
             if filter_type == "Needs Tag":
-                base_query += " AND (tag_id IS NULL OR tag_id = '')"
+                base_query += " AND (t.tag_id IS NULL OR t.tag_id = '')"
             elif filter_type == "Already Tagged":
-                base_query += " AND tag_id IS NOT NULL AND tag_id != ''"
+                base_query += " AND t.tag_id IS NOT NULL AND t.tag_id != ''"
 
             if query:
-                base_query += " AND (name LIKE %s OR tag_id LIKE %s)"
-                params.extend([f"%{query}%", f"%{query}%"])
+                base_query += " AND (t.name LIKE %s OR t.tool_id LIKE %s OR t.category LIKE %s OR t.supplier LIKE %s OR t.tag_id LIKE %s)"
+                params.extend([f"%{query}%"] * 5)
 
             cursor.execute(base_query, tuple(params))
             results = cursor.fetchall()
@@ -95,22 +96,26 @@ class TaggingView(ctk.CTkFrame):
                 return
 
             for i, row_data in enumerate(results):
-                display_data = [str(item) for item in row_data] 
+                display_data = [str(item) for item in row_data[:8]] 
+                
+                # To feed the exact 10 parameters to the open_tag_manager modal safely
+                tool_id, name, cat, sup, qty, loc, cond, tag, desc, price = row_data
+                full_data = [tool_id, name, desc, price, qty, loc, cond, tag, cat, sup]
                 
                 row_frame = ctk.CTkFrame(self.data_scroll, fg_color="#F9FAFB" if i % 2 == 0 else "white", height=40)
                 row_frame.pack(fill="x", pady=2)
                 row_frame.pack_propagate(False)
-                row_frame.bind("<Button-1>", lambda e, data=display_data: self.open_tag_manager(data))
+                row_frame.bind("<Button-1>", lambda e, data=full_data: self.open_tag_manager(data))
 
                 for col, (text, weight) in enumerate(zip(display_data, self.weights)):
                     row_frame.grid_columnconfigure(col, weight=weight)
                     
-                    txt_color = "#D8000C" if col == 4 and text == "Unassigned" else "#1A1A1A"
-                    font_weight = "bold" if col == 4 and text != "Unassigned" else "normal"
+                    txt_color = "#D8000C" if col == 7 and text == "Unassigned" else "#1A1A1A"
+                    font_weight = "bold" if col == 7 and text != "Unassigned" else "normal"
                     
                     lbl = ctk.CTkLabel(row_frame, text=text, font=("Inter", 11, font_weight), text_color=txt_color)
                     lbl.grid(row=0, column=col, padx=10, pady=10, sticky="w")
-                    lbl.bind("<Button-1>", lambda e, data=display_data: self.open_tag_manager(data))
+                    lbl.bind("<Button-1>", lambda e, data=full_data: self.open_tag_manager(data))
 
         except Exception as e:
             messagebox.showerror("Database Error", f"Failed to load tags: {e}", parent=self.winfo_toplevel())
@@ -129,43 +134,51 @@ class TaggingView(ctk.CTkFrame):
         self.filter_menu.set("All Tools")
         self.load_tagging_data()
 
-
-    # --- INDEPENDENT TEST SCANNER LOGIC ---
-
     def open_test_scanner(self):
-        """Opens the webcam specifically to read a QR code and fetch DB details."""
-        cap = cv2.VideoCapture(0)
+        try:
+            cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) # Turbo mode on Windows!
+        except:
+            cap = cv2.VideoCapture(0)
+
         if not cap.isOpened():
             messagebox.showerror("Camera Error", "No webcam detected.", parent=self.winfo_toplevel())
             return
 
-        messagebox.showinfo("Scanner Activated", "Point a printed Tag/QR Code at the camera.\nPress 'Q' to cancel.", parent=self.winfo_toplevel())
-        
         detected_tag = None
         while True:
             ret, frame = cap.read()
             if not ret: break
             
-            detected_codes = decode(frame)
+            # Draw targeting UI
+            height, width, _ = frame.shape
+            top_left = (int(width*0.25), int(height*0.3))
+            bottom_right = (int(width*0.75), int(height*0.7))
+            cv2.rectangle(frame, top_left, bottom_right, (0, 255, 0), 2)
+            cv2.putText(frame, "Align QR Code inside box", (top_left[0], top_left[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(frame, "Press 'Q' to Cancel", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+            
+            detected_codes = decode(frame, symbols=[ZBarSymbol.QRCODE])
             for barcode in detected_codes:
-                detected_tag = barcode.data.decode('utf-8')
+                raw_data = barcode.data.decode('utf-8')
+                if "Tag ID:" in raw_data:
+                    first_line = raw_data.split('\n')[0]
+                    detected_tag = first_line.replace("Tag ID: ", "").strip()
+                else:
+                    detected_tag = raw_data.strip()
                 break 
                 
-            cv2.imshow('Champion Tooling - Test Scanner', frame)
+            cv2.imshow('Champion Scanner - Turbo Mode', frame)
             
-            # Close window if tag is found OR user presses 'q'
             if detected_tag or cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
         cap.release()
         cv2.destroyAllWindows()
         
-        # If we caught a tag, look it up in the database!
         if detected_tag:
             self.fetch_and_display_scanned_tool(detected_tag)
 
     def fetch_and_display_scanned_tool(self, tag_id):
-        """Queries the live database using the scanned license plate (tag_id)"""
         conn = get_connection()
         if not conn: return
         
@@ -181,7 +194,6 @@ class TaggingView(ctk.CTkFrame):
             result = cursor.fetchone()
             
             if result:
-                # Format a beautiful read-out of the live data
                 info = (
                     f"✓ Tag Recognized: {tag_id}\n"
                     f"{'-'*40}\n"
@@ -202,17 +214,14 @@ class TaggingView(ctk.CTkFrame):
                 cursor.close()
                 conn.close()
 
-
-    # --- TAG MANAGER MODAL (ASSIGNMENT) ---
-
-    # --- TAG MANAGER MODAL (ASSIGNMENT) ---
-
     def open_tag_manager(self, data):
         tool_id = data[0]
         tool_name = data[1]
-        tool_category = data[2]
-        tool_supplier = data[3]
-        current_tag = "" if data[4] == "Unassigned" else data[4]
+        tool_loc = data[5]
+        tool_cond = data[6]
+        current_tag = "" if data[7] == "Unassigned" else data[7]
+        tool_category = data[8]
+        tool_supplier = data[9]
 
         modal = ctk.CTkToplevel(self)
         modal.title(f"Tag Manager: {tool_name}")
@@ -242,20 +251,16 @@ class TaggingView(ctk.CTkFrame):
         if current_tag:
             tag_entry.insert(0, current_tag)
 
-        # 1. THE TRIGGER FIX: Explicitly call update_preview() here!
         def generate_smart_tag():
             tag_entry.delete(0, 'end')
-            
             cat_prefix = str(tool_category)[:3].upper() if tool_category and tool_category != "None" else "GEN"
             sup_prefix = str(tool_supplier)[:3].upper() if tool_supplier and tool_supplier != "None" else "UNK"
-            
             smart_tag = f"TAG-{str(tool_id).zfill(3)}-{cat_prefix}-{sup_prefix}"
             tag_entry.insert(0, smart_tag)
-            update_preview() # Wakes up the preview immediately after auto-generating!
+            update_preview() 
 
         ctk.CTkButton(tag_row, text="↻ Auto-Gen", width=80, height=35, fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", font=("Inter", 11, "bold"), command=generate_smart_tag).pack(side="left", padx=(0, 5))
 
-        # --- SAVE LOGIC ---
         def save_tag():
             new_tag = tag_entry.get().strip()
             if not new_tag:
@@ -291,7 +296,7 @@ class TaggingView(ctk.CTkFrame):
                     cursor.execute("UPDATE tool SET tag_id = NULL WHERE tool_id = %s", (tool_id,))
                     conn.commit()
                     tag_entry.delete(0, 'end')
-                    update_preview() # Clear the preview when unlinked!
+                    update_preview() 
                     self.load_tagging_data()
                     messagebox.showinfo("Success", "Tag removed.", parent=modal)
                 except Exception as e:
@@ -307,68 +312,70 @@ class TaggingView(ctk.CTkFrame):
         preview_frame = ctk.CTkFrame(form_frame, fg_color="#F9FAFB", corner_radius=10)
         preview_frame.pack(fill="both", expand=True, pady=(20, 0))
 
-        # 2. THE IMAGE STABILITY FIX
         def update_preview():
-            # Clear old preview widgets first
+            current_val = tag_entry.get().strip()
+            if not current_val: return
+            
+            qr_payload = f"Tag ID: {current_val}\nPID: {tool_id}\nName: {tool_name}\nLocation: {tool_loc}\nStatus: {tool_cond}"
+            
+            qr = qrcode.QRCode(version=1, box_size=5, border=1)
+            qr.add_data(qr_payload)
+            qr.make(fit=True)
+            raw_img = qr.make_image(fill_color="#1E4528", back_color="#F9FAFB").get_image()
+            
+            qr_ctk_img = ctk.CTkImage(light_image=raw_img, size=(120, 120))
+            
             for widget in preview_frame.winfo_children():
                 widget.destroy()
                 
-            current_val = tag_entry.get().strip()
-            if not current_val: return # If empty, leave the box blank
-            
-            # Draw the UI Preview safely with RGB conversion
-            qr = qrcode.QRCode(version=1, box_size=5, border=1)
-            qr.add_data(current_val)
-            qr.make(fit=True)
-            img_preview = qr.make_image(fill_color="#1E4528", back_color="#F9FAFB").convert("RGB")
-            
-            # Attach the image to the frame so Python's Garbage Collector doesn't eat it!
-            preview_frame.qr_ctk_img = ctk.CTkImage(light_image=img_preview, size=(120, 120))
-                
             ctk.CTkLabel(preview_frame, text="Live QR Preview", font=("Inter", 11, "bold"), text_color="gray").pack(pady=(10, 5))
-            ctk.CTkLabel(preview_frame, image=preview_frame.qr_ctk_img, text="").pack(pady=5)
+            ctk.CTkLabel(preview_frame, image=qr_ctk_img, text="").pack(pady=5)
             
-            # The Real Print Function
-            # The Real Print Function
-            # The Real Print Function
             def execute_print():
                 try:
-                    # 1. Drop the modal shield
-                    modal.attributes("-topmost", False)
+                    modal.attributes("-topmost", False) 
 
-                    # 2. Make the QR code natively larger (box_size=20)
-                    print_qr = qrcode.QRCode(version=1, box_size=20, border=2)
-                    print_qr.add_data(current_val)
+                    print_qr = qrcode.QRCode(version=1, box_size=15, border=2)
+                    print_qr.add_data(qr_payload) 
                     print_qr.make(fit=True)
                     qr_img = print_qr.make_image(fill_color="black", back_color="white").convert("RGB")
                     
-                    # 3. Create a standard "Printable Canvas" (1200x1200px) so Windows doesn't panic when stretching it to A4
-                    from PIL import Image as PILImage
-                    canvas = PILImage.new('RGB', (1200, 1200), 'white')
+                    canvas_width = qr_img.width + 100
+                    canvas_height = qr_img.height + 150
+                    canvas = Image.new('RGB', (canvas_width, canvas_height), 'white')
                     
-                    # Mathematically center the QR code on the blank canvas
-                    offset_x = (canvas.width - qr_img.width) // 2
-                    offset_y = (canvas.height - qr_img.height) // 2
-                    canvas.paste(qr_img, (offset_x, offset_y))
+                    offset_x = (canvas_width - qr_img.width) // 2
+                    canvas.paste(qr_img, (offset_x, 30))
                     
-                    import tempfile, os, time
+                    draw = ImageDraw.Draw(canvas)
+                    try:
+                        font = ImageFont.truetype("arial.ttf", 40) 
+                    except IOError:
+                        font = ImageFont.load_default() 
+                        
+                    text_str = f"{current_val}"
+                    bbox = draw.textbbox((0, 0), text_str, font=font)
+                    text_w = bbox[2] - bbox[0]
+                    text_x = (canvas_width - text_w) // 2
+                    text_y = qr_img.height + 60
+                    
+                    draw.text((text_x, text_y), text_str, fill="black", font=font)
+                    
                     temp_dir = tempfile.gettempdir()
-                    file_path = os.path.join(temp_dir, f"{current_val}.png")
+                    safe_filename = "".join(c for c in current_val if c.isalnum() or c in ('-', '_'))
+                    file_path = os.path.join(temp_dir, f"Print_Label_{safe_filename}.pdf")
                     
-                    # Save the new properly scaled canvas
-                    canvas.save(file_path, format="PNG")
+                    canvas.save(file_path, "PDF", resolution=100.0)
                     
-                    # 4. Give the hard drive a split second to finish saving and unlock the file
-                    time.sleep(0.3)
-                    
-                    # 5. Trigger the Print window
-                    os.startfile(file_path, "print")
+                    import time
+                    time.sleep(0.5)
+                    os.startfile(file_path)
                     
                 except Exception as e:
-                    messagebox.showerror("Print Error", f"Could not communicate with Windows.\nError: {e}", parent=modal)
-                    modal.attributes("-topmost", True) # Put the shield back up if it fails
+                    messagebox.showerror("Print Error", f"Failed to open document viewer.\n{e}", parent=modal)
+                    modal.attributes("-topmost", True)
 
-            ctk.CTkButton(preview_frame, text="⎙ Print Label", width=100, height=28, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 11), command=execute_print).pack(pady=(5, 10))
+            ctk.CTkButton(preview_frame, text="⎙ Generate Print File", width=140, height=35, fg_color="#1E4528", hover_color="#14301C", font=("Inter", 12, "bold"), command=execute_print).pack(pady=(5, 10))
 
         tag_entry.bind("<KeyRelease>", lambda e: update_preview())
         update_preview() 
