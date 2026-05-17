@@ -1,344 +1,265 @@
 import os
 import customtkinter as ctk
-import sys
+import tkinter as tk
 from tkinter import messagebox
-from datetime import datetime
 from PIL import Image
+import bcrypt
 from database import get_connection
+from dashboard import DashboardApp
 
-# Data Visualization
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+ctk.set_appearance_mode("light") 
+ctk.set_default_color_theme("green") 
 
-# Import Views
-from views.inventory import InventoryView
-from views.profile import ProfileView
-from views.tagging import TaggingView
-from views.borrowing import BorrowingView
+class LoginApp(ctk.CTk):
+    def __init__(self):
+        super().__init__()
 
-class DashboardApp(ctk.CTkToplevel): 
-    def __init__(self, parent, user_info):
-        
-        super().__init__(master=parent) 
-
-        self.user_info = user_info 
         self.title("Champion Fine Tooling - Automated Management System")
-        self.geometry("1350x850")
         self.configure(fg_color="#F4F6F8") 
-        
-        # --- ADD THIS LINE HERE ---
-        self.protocol("WM_DELETE_WINDOW", self.confirm_logout)
-        # --------------------------
-        
-        self.grid_rowconfigure(1, weight=1)
-        self.grid_columnconfigure(1, weight=1)
-        
-        self.build_sidebar()
-        self.build_topbar()
-        
-        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
-        self.main_container.grid(row=1, column=1, sticky="nsew", padx=30, pady=30)
-        self.main_container.grid_rowconfigure(0, weight=1)
-        self.main_container.grid_columnconfigure(0, weight=1)
+        self.resizable(False, False)
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        self.current_frame = None
-        self.show_frame("Dashboard")
+        # --- FIX 1: Robust Monitor Centering ---
+        # We calculate and force the exact window placement instantly on launch
+        window_width = 450
+        window_height = 650
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        x = int((screen_width / 2) - (window_width / 2))
+        y = int((screen_height / 2) - (window_height / 2))
+        self.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
-    def build_sidebar(self):
-        self.sidebar_frame = ctk.CTkFrame(self, width=250, corner_radius=0, fg_color="#1A3B22")
-        self.sidebar_frame.grid(row=0, column=0, rowspan=2, sticky="nsew")
-        self.sidebar_frame.grid_propagate(False)
-
-        # Circular Icon at the top left of the SIDEBAR
-        self.icon_path = os.path.join(os.path.dirname(__file__), "assets", "login_logo.png") # The circle icon
+        self.icon_path = os.path.join(os.path.dirname(__file__), "assets", "login_logo.png")
         try:
-            self.sidebar_icon_img = ctk.CTkImage(light_image=Image.open(self.icon_path), size=(50, 50))
-            self.sidebar_logo = ctk.CTkLabel(self.sidebar_frame, image=self.sidebar_icon_img, text="")
-            self.sidebar_logo.pack(pady=(30, 10))
-        except FileNotFoundError:
-            self.sidebar_logo = ctk.CTkLabel(self.sidebar_frame, text="🟢", font=("Inter", 40))
-            self.sidebar_logo.pack(pady=(30, 10))
-
-        ctk.CTkLabel(self.sidebar_frame, text="Automated Management\nSystem", font=("Inter", 14, "bold"), text_color="white").pack(pady=(0, 30))
-
-        nav_items = [
-            "Dashboard", "Products / Inventory", "Tagging", 
-            "Borrowing & Return", "Tracking & Accountability", 
-            "Reports", "Maintenance", "Role Management", "Help"
-        ]
-
-        self.nav_buttons = {}
-
-        for item in nav_items:
-            btn = ctk.CTkButton(self.sidebar_frame, text=item, anchor="w", fg_color="transparent",
-                                hover_color="#2A6038", text_color="white", font=("Inter", 13, "bold"),
-                                command=lambda m=item: self.show_frame(m))
-            btn.pack(fill="x", pady=2, padx=10)
-            self.nav_buttons[item] = btn
-
-        exit_btn = ctk.CTkButton(self.sidebar_frame, text="Exit", anchor="w", fg_color="transparent",
-                                hover_color="#8B0000", text_color="white", font=("Inter", 13, "bold"),
-                                command=self.confirm_logout)
-        exit_btn.pack(side="bottom", fill="x", pady=20, padx=10)
-
-    def build_topbar(self):
-        self.topbar_frame = ctk.CTkFrame(self, height=60, corner_radius=0, fg_color="white")
-        self.topbar_frame.grid(row=0, column=1, sticky="ew")
-        self.topbar_frame.pack_propagate(False)
-
-        # Company Logo at the top left of the TOPBAR (Next to "Champion Fine Tooling")
-        self.logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo.png")
-        try:
-            self.topbar_logo_img = ctk.CTkImage(light_image=Image.open(self.logo_path), size=(30, 30))
-            self.header_logo = ctk.CTkLabel(self.topbar_frame, image=self.topbar_logo_img, text=" Champion Fine Tooling", compound="left", font=("Inter", 14, "bold"), text_color="#1A3B22")
-            self.header_logo.pack(side="left", padx=30)
-        except FileNotFoundError:
-            self.header_logo = ctk.CTkLabel(self.topbar_frame, text="Champion Fine Tooling", font=("Inter", 14, "bold"), text_color="#1A3B22")
-            self.header_logo.pack(side="left", padx=30)
-
-        current_time = datetime.now().strftime("%a, %b %d, %Y, %I:%M %p")
-        self.time_label = ctk.CTkLabel(self.topbar_frame, text=current_time, font=("Inter", 12), text_color="#666666")
-        self.time_label.pack(side="right", padx=(10, 30), pady=20)
-
-        self.user_frame = ctk.CTkFrame(self.topbar_frame, fg_color="transparent", cursor="hand2")
-        self.user_frame.pack(side="right", padx=15, pady=5)
-        self.user_frame.bind("<Button-1>", lambda e: self.show_frame("Profile"))
-
-       # Create a tiny invisible frame to stack the texts properly
-        self.user_text_frame = ctk.CTkFrame(self.user_frame, fg_color="transparent", cursor="hand2")
-        self.user_text_frame.pack(side="right", padx=(10, 0))
-        self.user_text_frame.bind("<Button-1>", lambda e: self.show_frame("Profile"))
-
-        # The Name Label (Black)
-        self.user_name_label = ctk.CTkLabel(self.user_text_frame, text=f"{self.user_info['full_name']}", 
-                                       font=("Inter", 14, "bold"), text_color="black")
-        self.user_name_label.pack(anchor="w") # 'w' forces it to align perfectly LEFT
-        self.user_name_label.bind("<Button-1>", lambda e: self.show_frame("Profile"))
-
-        # The Role Label (Green)
-        self.user_role_label = ctk.CTkLabel(self.user_text_frame, text=f"{self.user_info['role']}", 
-                                       font=("Inter", 12, "bold"), text_color="#2ECC71")
-        self.user_role_label.pack(anchor="w") # 'w' forces it to align perfectly LEFT
-        self.user_role_label.bind("<Button-1>", lambda e: self.show_frame("Profile"))
-
-        self.profile_pic_label = ctk.CTkLabel(self.user_frame, text="")
-        self.profile_pic_label.pack(side="right")
-        self.profile_pic_label.bind("<Button-1>", lambda e: self.show_frame("Profile"))
-
-        self.refresh_topbar()
-
-    def refresh_topbar(self):
-        self.user_name_label.configure(text=f"{self.user_info['full_name']}")
-        self.user_role_label.configure(text=f"{self.user_info['role']}")
-        pic_path = os.path.join(os.path.dirname(__file__), "assets", "profiles", f"{self.user_info['employee_id']}.png")
-        if not os.path.exists(pic_path):
-            pic_path = os.path.join(os.path.dirname(__file__), "assets", "login_logo.png") 
-        try:
-            self.topbar_profile_img = ctk.CTkImage(light_image=Image.open(pic_path), size=(40, 40))
-            self.profile_pic_label.configure(image=self.topbar_profile_img)
+            icon_img = tk.PhotoImage(file=self.icon_path)
+            self.iconphoto(False, icon_img)
         except Exception:
-            self.profile_pic_label.configure(text="👤")
+            pass
 
-    def confirm_exit(self):
-        if messagebox.askyesno("Confirm Exit", "Are you sure you want to close the Automated Management System?"):
-            self.master.quit()     # 1. Stops the Tkinter main event loop
-            self.master.destroy()  # 2. Destroys the hidden login window (and this dashboard)
-            sys.exit(0)            # 3. Kills the Python process completely, stopping all background timers
-    
-    def confirm_logout(self):
-        if messagebox.askyesno("Confirm Logout", "Are you sure you want to log out of your account?"):
-            self.destroy() # Closes the dashboard
-            self.master.deiconify() # Un-hides the login window!
-            self.master.pass_entry.delete(0, 'end') # Clears the password for security
+        self.failed_attempts = 0
 
-    def show_frame(self, page_name):
-        # Handle Active Highlighting
-        for name, btn in self.nav_buttons.items():
-            if name == page_name:
-                btn.configure(fg_color="#2A6038", text_color="#F1C40F")
-            else:
-                btn.configure(fg_color="transparent", text_color="white")
+        # Main Container (The White Box)
+        self.main_frame = ctk.CTkFrame(self, fg_color="white", corner_radius=10, border_width=1, border_color="#E0E0E0")
+        self.main_frame.pack(pady=40, padx=40, fill="both", expand=True)
 
-        if self.current_frame is not None:
-            self.current_frame.destroy()
+        # --- FIX 2: Mathematical UI Centering ---
+        # We wrap all the inputs in an invisible frame and anchor it to the dead center!
+        self.content_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.content_frame.place(relx=0.5, rely=0.5, anchor="center")
 
-        if page_name == "Profile":
-            self.current_frame = ProfileView(self.main_container, self.user_info, self)
-        elif page_name == "Products / Inventory":
-            self.current_frame = InventoryView(self.main_container)
-        elif page_name == "Tagging":
-            self.current_frame = TaggingView(self.main_container)
-        elif page_name == "Borrowing & Return":
-            self.current_frame = BorrowingView(self.main_container)
-        elif page_name == "Dashboard":
-            self.current_frame = self.create_home_dashboard()
+        try:
+            self.main_logo_img = ctk.CTkImage(light_image=Image.open(self.icon_path), size=(110, 100))
+            self.logo_label = ctk.CTkLabel(self.content_frame, image=self.main_logo_img, text="")
+            self.logo_label.pack(pady=(0, 10))
+        except FileNotFoundError:
+            self.logo_label = ctk.CTkLabel(self.content_frame, text="[ LOGO ]", font=("Inter", 20, "bold"), text_color="green")
+            self.logo_label.pack(pady=(0, 10))
+
+        self.label = ctk.CTkLabel(self.content_frame, text="Champion Fine Tooling Corp.", font=("Inter", 22, "bold"), text_color="#1A1A1A")
+        self.label.pack(pady=(0, 2))
+
+        self.sub_label = ctk.CTkLabel(self.content_frame, text="Automated Management System", font=("Inter", 16), text_color="#888888")
+        self.sub_label.pack(pady=(0, 30))
+
+        # Username Input
+        self.user_entry = ctk.CTkEntry(self.content_frame, placeholder_text="Username", width=280, height=40, 
+                                       corner_radius=6, fg_color="#F9FAFB", border_color="#D1D5DB", text_color="black")
+        self.user_entry.pack(pady=(0, 15))
+        self.user_entry.bind("<Return>", lambda e: self.login())
+
+        # Password Input Frame
+        self.pass_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent", width=280, height=40)
+        self.pass_frame.pack(pady=(0, 10))
+        self.pass_frame.pack_propagate(False)
+
+        self.pass_entry = ctk.CTkEntry(self.pass_frame, placeholder_text="Password", width=235, height=40, 
+                                       corner_radius=6, fg_color="#F9FAFB", border_color="#D1D5DB", text_color="black", show="•")
+        self.pass_entry.pack(side="left")
+        self.pass_entry.bind("<Return>", lambda e: self.login())
+
+        self.show_pwd = False
+        self.eye_btn = ctk.CTkButton(self.pass_frame, text="👁", width=40, height=40, corner_radius=6,
+                                     fg_color="#F3F4F6", text_color="#4B5563", hover_color="#E5E7EB", command=self.toggle_password)
+        self.eye_btn.pack(side="right", padx=(5, 0))
+
+        # Checkbox & Error Banner
+        self.remember_check = ctk.CTkCheckBox(self.content_frame, text="Remember me", font=("Inter", 11), checkbox_width=18, checkbox_height=18, border_color="#D1D5DB", text_color="#666666")
+        self.remember_check.pack(anchor="w", pady=(0, 15))
+
+        self.error_banner = ctk.CTkLabel(self.content_frame, text="", fg_color="transparent", text_color="#D8000C", font=("Inter", 11, "bold"), corner_radius=5)
+        self.error_banner.pack(fill="x", pady=(0, 10))
+
+        self.login_button = ctk.CTkButton(self.content_frame, text="Login", command=self.login,
+                                          width=280, height=40, corner_radius=6,
+                                          fg_color="#1E4528", hover_color="#14301C", font=("Inter", 13, "bold"))
+        self.login_button.pack(pady=(0, 15))
+
+        self.footer_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.footer_frame.pack(pady=10)
+
+        self.lbl_forgot_user = ctk.CTkLabel(self.footer_frame, text="Forgot Username?", font=("Inter", 11), text_color="#666666", cursor="hand2")
+        self.lbl_forgot_user.pack(side="left", padx=10)
+        self.lbl_forgot_user.bind("<Button-1>", lambda e: self.open_forgot_username())
+
+        self.lbl_forgot_pass = ctk.CTkLabel(self.footer_frame, text="Forgot Password?", font=("Inter", 11), text_color="#666666", cursor="hand2")
+        self.lbl_forgot_pass.pack(side="left", padx=10)
+        self.lbl_forgot_pass.bind("<Button-1>", lambda e: self.open_forgot_password())
+
+    def center_window(self, window, width, height):
+        # ... (Keep this method completely intact, the modals still use it!)
+        window.update_idletasks()
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        x = int((screen_width / 2) - (width / 2))
+        y = int((screen_height / 2) - (height / 2))
+        window.geometry(f"{width}x{height}+{x}+{y}")
+
+    def toggle_password(self):
+        if self.show_pwd:
+            self.pass_entry.configure(show="*")
+            self.eye_btn.configure(text="👁")
+            self.show_pwd = False
         else:
-            self.current_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
-            ctk.CTkLabel(self.current_frame, text=f"{page_name.upper()} MODULE", font=("Inter", 20), text_color="gray").pack(expand=True)
+            self.pass_entry.configure(show="")
+            self.eye_btn.configure(text="✕") 
+            self.show_pwd = True
 
-        # THE FIX: This perfectly centers the frame and forces it to fill the safe area
-        self.current_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=1.0, relheight=1.0)
+    def show_error(self, message):
+        self.error_banner.configure(text=f"⚠ {message}", fg_color="#FFD2D2")
 
-    def get_live_metrics(self):
-        metrics = {"total_types": 0, "available_qty": 0, "borrowed_qty": 0, "employees": 0}
-        activities = []
-        chart_data = [0, 0, 0, 0] # Maps to: Good, Needs Repair, Damaged, Lost
+    def login(self, event=None):
+        # 1. THE STATE LOCK: Prevent double-clicks / double-Enters
+        if self.login_button.cget("state") == "disabled":
+            return
+            
+        self.login_button.configure(state="disabled", text="Authenticating...")
+        self.update_idletasks() # Force UI to update instantly
+        
+        username = self.user_entry.get().strip()
+        password = self.pass_entry.get().strip()
+
+        if not username or not password:
+            self.show_error("Please fill in all fields.")
+            self.login_button.configure(state="normal", text="Login") # Unlock
+            return
 
         conn = get_connection()
-        if not conn: return metrics, activities, chart_data
+        if not conn:
+            self.show_error("Database connection failed.")
+            self.login_button.configure(state="normal", text="Login") # Unlock
+            return
 
         try:
             cursor = conn.cursor(dictionary=True)
-            
-            # 1. Total Distinct Tool Profiles (e.g., 2 Types of tools)
-            cursor.execute("SELECT COUNT(*) as cnt FROM tool WHERE is_archived = 0")
-            metrics["total_types"] = cursor.fetchone()["cnt"] or 0
-            
-            # 2. Available & Borrowed Physical Pieces (e.g., 273 actual items)
-            cursor.execute("SELECT SUM(quantity_available) as avail, SUM(quantity_total - quantity_available) as borrowed FROM inventory i JOIN tool t ON i.tool_id = t.tool_id WHERE t.is_archived = 0")
-            inv = cursor.fetchone()
-            if inv:
-                metrics["available_qty"] = int(inv["avail"] or 0)
-                metrics["borrowed_qty"] = int(inv["borrowed"] or 0)
+            cursor.execute("SELECT * FROM user WHERE employee_id = %s", (username,))
+            user = cursor.fetchone()
+
+            if user:
+                input_password_bytes = password.encode('utf-8')
+                stored_hash_bytes = user['password_hash'].encode('utf-8')
                 
-            # 3. Total Registered Employees
-            cursor.execute("SELECT COUNT(*) as cnt FROM user")
-            metrics["employees"] = cursor.fetchone()["cnt"] or 0
-            
-            # 4. The "Omni-Log" Query: Merges Transactions, Additions, and Archives with Time!
-            cursor.execute("""
-                SELECT DATE_FORMAT(DATE_ADD(raw_date, INTERVAL 8 HOUR), '%Y-%m-%d %h:%i %p') as date, action, item, user FROM (
-                    SELECT borrow_date as raw_date, type as action, t.name as item, u.full_name as user
-                    FROM transaction tr JOIN tool t ON tr.tool_id = t.tool_id JOIN user u ON tr.user_id = u.user_id
-                    UNION ALL
-                    SELECT date_acquired as raw_date, 'Added' as action, name as item, 'Admin' as user
-                    FROM tool WHERE is_archived = 0
-                    UNION ALL
-                    SELECT archived_at as raw_date, 'Archived' as action, name as item, 'Admin' as user
-                    FROM tool WHERE is_archived = 1 AND archived_at IS NOT NULL
-                ) as combined_log
-                ORDER BY raw_date DESC LIMIT 5
-            """)
-            for row in cursor.fetchall():
-                activities.append((row["date"], row["action"], row["item"], row["user"]))
-                
-            # 5. Chart Metrics
-            cursor.execute("SELECT `condition`, COUNT(*) as cnt FROM tool WHERE is_archived = 0 GROUP BY `condition`")
-            cond_map = {"Good": 0, "Needs Repair": 1, "Damaged": 2, "Lost": 3}
-            for row in cursor.fetchall():
-                c = row["condition"]
-                if c in cond_map:
-                    chart_data[cond_map[c]] = row["cnt"]
+                if bcrypt.checkpw(input_password_bytes, stored_hash_bytes):
+                    self.failed_attempts = 0
                     
-        except Exception as e:
-            print(f"Dashboard Sync Error: {e}")
-        finally:
-            if conn.is_connected(): cursor.close(); conn.close()
-                
-        return metrics, activities, chart_data
-
-    def create_home_dashboard(self):
-        # UI FIX: Made it a horizontal scrollable frame so it never squishes!
-        frame = ctk.CTkScrollableFrame(self.main_container, fg_color="transparent", orientation="horizontal")
-        
-        # A container inside the scrollable frame to hold everything nicely
-        inner_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        inner_frame.pack(fill="both", expand=True)
-        
-        ctk.CTkLabel(inner_frame, text="DASHBOARD", font=("Inter", 24, "bold"), text_color="#1A1A1A").pack(anchor="w", pady=(0, 20))
-        
-        metrics, activities, chart_data = self.get_live_metrics()
-        
-        cards_frame = ctk.CTkFrame(inner_frame, fg_color="transparent")
-        cards_frame.pack(fill="x", pady=(0, 20))
-
-        # Changed Labels to reflect Reality (Quantity vs Profiles)
-        data = [
-            ("Unique Tool Profiles", str(metrics["total_types"]), "#1E4528"),       
-            ("Total Physical Items", str(metrics["available_qty"]), "#2ECC71"),   
-            ("Items Borrowed", str(metrics["borrowed_qty"]), "#F1C40F"),           
-            ("Registered Employees", str(metrics["employees"]), "#D35400") 
-        ]
-        
-        for i, (title, val, color) in enumerate(data):
-            # minsize=220 prevents the cards from shrinking and forces the scrollbar
-            cards_frame.grid_columnconfigure(i, weight=1, minsize=220) 
-            card = ctk.CTkFrame(cards_frame, fg_color=color, corner_radius=10, height=100)
-            card.grid(row=0, column=i, padx=5, sticky="ew")
-            card.pack_propagate(False)
+                    # Delay launch by 200ms so animations finish
+                    self.after(200, lambda: self.launch_dashboard(user))
+                    return # DO NOT unlock the button here; we are transitioning!
             
-            txt_color = "black" if color == "#F1C40F" else "white"
-            ctk.CTkLabel(card, text=val, font=("Inter", 28, "bold"), text_color=txt_color).pack(anchor="w", padx=20, pady=(20, 0))
-            ctk.CTkLabel(card, text=title, font=("Inter", 12), text_color=txt_color).pack(anchor="w", padx=20)
+            self.failed_attempts += 1
+            if self.failed_attempts >= 3:
+                messagebox.showwarning("Security Alert", "Too many failed attempts. Please request an admin reset.", parent=self)
+                self.failed_attempts = 0 
+                self.open_forgot_password()
+            else:
+                attempts_left = 3 - self.failed_attempts
+                self.show_error(f"Invalid Credentials. {attempts_left} attempts left.")
+                
+            # Unlock the button if login failed
+            self.login_button.configure(state="normal", text="Login")
+                
+        except Exception as e:
+            self.show_error(f"System Error: {e}")
+            self.login_button.configure(state="normal", text="Login") # Unlock
+        finally:
+            if conn and conn.is_connected():
+                cursor.close()
+                conn.close()
 
-        bottom_frame = ctk.CTkFrame(inner_frame, fg_color="transparent")
-        bottom_frame.pack(fill="both", expand=True)
+    # --- LAN-ADAPTED MODALS (Centered) ---
+    def open_forgot_username(self):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Forgot Username")
         
-        # minsize prevents the table and chart from shrinking and forces the scrollbar
-        bottom_frame.grid_columnconfigure(0, weight=2, minsize=550) 
-        bottom_frame.grid_columnconfigure(1, weight=1, minsize=400) 
-
-        # Left: Live Recent Activity Table
-        activity_card = ctk.CTkFrame(bottom_frame, fg_color="white", corner_radius=10)
-        activity_card.grid(row=0, column=0, sticky="nsew", padx=(5, 10))
-        ctk.CTkLabel(activity_card, text="Recent Activity", font=("Inter", 14, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=20)
+        # Center the dialog!
+        self.center_window(dialog, 400, 250)
         
-        header_frame = ctk.CTkFrame(activity_card, fg_color="#1E4528", corner_radius=5, height=35)
-        header_frame.pack(fill="x", padx=20)
-        header_frame.pack_propagate(False)
-        for col, text in enumerate(["Date & Time", "Action", "Item", "User"]):
-            header_frame.grid_columnconfigure(col, weight=1)
-            ctk.CTkLabel(header_frame, text=text, font=("Inter", 11, "bold"), text_color="white").grid(row=0, column=col, padx=10, pady=5, sticky="w")
+        dialog.configure(fg_color="white")
+        dialog.attributes("-topmost", True) 
+        dialog.grab_set() 
 
-        if not activities:
-            activities = [("-", "No recent activity recorded.", "-", "-")]
-
-        for i, row_data in enumerate(activities):
-            row_frame = ctk.CTkFrame(activity_card, fg_color="#F9FAFB" if i % 2 == 0 else "white", height=35)
-            row_frame.pack(fill="x", padx=20)
-            row_frame.pack_propagate(False)
-            for col, text in enumerate(row_data):
-                row_frame.grid_columnconfigure(col, weight=1)
-                ctk.CTkLabel(row_frame, text=text, font=("Inter", 11), text_color="#1A1A1A").grid(row=0, column=col, padx=10, pady=5, sticky="w")
-
-        # Right: Matplotlib Analytics Visualization
-        analytics_card = ctk.CTkFrame(bottom_frame, fg_color="white", corner_radius=10)
-        analytics_card.grid(row=0, column=1, sticky="nsew", padx=(10, 5))
-        ctk.CTkLabel(analytics_card, text="Tool Condition Metrics", font=("Inter", 14, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(20, 5))
-
-        self.embed_chart(analytics_card, chart_data)
+        # Altered text to reflect LAN reality instead of email
+        ctk.CTkLabel(dialog, text="FORGOT USERNAME", font=("Inter", 14, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=30, pady=(20, 10))
+        ctk.CTkLabel(dialog, text="Please provide your full name to generate\nan admin retrieval request ticket.", font=("Inter", 11), text_color="gray", justify="left").pack(anchor="w", padx=30, pady=(0, 15))
         
-        return frame
+        email_entry = ctk.CTkEntry(dialog, placeholder_text="Full Name", width=340, height=35)
+        email_entry.pack(padx=30, pady=(0, 15))
 
-    def embed_chart(self, parent_frame, chart_data):
-        fig, ax = plt.subplots(figsize=(5, 3), dpi=100)
-        fig.patch.set_facecolor('#FFFFFF')
-        ax.set_facecolor('#FFFFFF')
-
-        categories = ['Good', 'Repair', 'Damaged', 'Lost']
-        colors = ['#2ECC71', '#F1C40F', '#E67E22', '#95A5A6']
-
-        bars = ax.bar(categories, chart_data, color=colors, width=0.6)
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=30)
         
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['left'].set_visible(False)
-        ax.get_yaxis().set_ticks([])
+        ctk.CTkButton(btn_frame, text="Generate Request", fg_color="#1E4528", hover_color="#14301C", command=lambda: messagebox.showinfo("LAN Request", "Please see the Administrator with ID Ticket #4928.")).pack(side="left", expand=True, fill="x", padx=(0, 10))
+        ctk.CTkButton(btn_frame, text="Cancel", fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=dialog.destroy).pack(side="right", width=80)
+
+    def open_forgot_password(self):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Forgot Password")
         
-        for bar in bars:
-            yval = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2, yval + (max(chart_data)*0.05 + 0.1) if max(chart_data) > 0 else yval + 0.1, 
-                    int(yval), ha='center', va='bottom', fontdict={'family': 'sans-serif', 'weight': 'bold', 'color': '#333333'})
+        # Center the dialog!
+        self.center_window(dialog, 400, 250)
+        
+        dialog.configure(fg_color="white")
+        dialog.attributes("-topmost", True)
+        dialog.grab_set()
 
-        plt.tight_layout()
+        ctk.CTkLabel(dialog, text="ACCOUNT LOCKOUT", font=("Inter", 14, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=30, pady=(20, 10))
+        ctk.CTkLabel(dialog, text="For security purposes, passwords cannot be retrieved.\nEnter your username to request a reset.", font=("Inter", 11), text_color="gray", justify="left").pack(anchor="w", padx=30, pady=(0, 15))
+        
+        user_entry = ctk.CTkEntry(dialog, placeholder_text="Username", width=340, height=35)
+        user_entry.pack(padx=30, pady=(0, 15))
 
-        canvas = FigureCanvasTkAgg(fig, master=parent_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=30)
+        
+        ctk.CTkButton(btn_frame, text="Request Reset", fg_color="#1E4528", hover_color="#14301C", command=lambda: messagebox.showinfo("Admin Reset", "Reset requested. Please verify your identity with the System Administrator.")).pack(side="left", expand=True, fill="x", padx=(0, 10))
+        ctk.CTkButton(btn_frame, text="Cancel", fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=dialog.destroy).pack(side="right", width=80)
 
-    def on_dashboard_closing(self):
-        """Returns to login screen when the Dashboard 'X' button is clicked."""
-        if messagebox.askyesno("Log Out", "Are you sure you want to log out and return to the login page?"):
-            self.master.deiconify() 
-            self.destroy()
-    
+    def launch_dashboard(self, user):
+        """Builds the dashboard safely after the UI animations finish."""
+        try:
+            dashboard = DashboardApp(self, user_info=user)
+            self.center_window(dashboard, 1350, 850)
+            
+            self.withdraw() 
+            
+            # 2. Reset the login button in the background for when they eventually log out
+            self.login_button.configure(state="normal", text="Login")
+            self.user_entry.delete(0, 'end')
+            self.pass_entry.delete(0, 'end')
+            
+        except Exception as e:
+            self.show_error(f"Dashboard Error: {e}")
+            self.login_button.configure(state="normal", text="Login") # Unlock on crash
+
+    # --- ADD THIS ENTIRE METHOD HERE ---
+    def on_closing(self):
+        """Global confirmation for the window's 'X' button."""
+        if messagebox.askyesno("Exit Application", "Are you sure you want to close the entire system?"):
+            self.quit()     # 1. Stop the Tkinter engine
+            self.destroy()  # 2. Delete the window
+            import os       # Just in case!
+            os._exit(0)     # 3. Hard kill the process to prevent ghost errors
+
+# (Leave this at the very bottom, touching the left wall)
+if __name__ == "__main__":
+    app = LoginApp()
+    app.mainloop()
