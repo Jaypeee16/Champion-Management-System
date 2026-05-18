@@ -18,24 +18,24 @@ from views.borrowing import BorrowingView
 
 class DashboardApp(ctk.CTkToplevel): 
     def __init__(self, parent, user_info):
-        
         super().__init__(master=parent) 
 
         self.user_info = user_info 
         self.title("Champion Fine Tooling - Automated Management System")
         self.geometry("1350x850")
-        self.configure(fg_color="#F4F6F8") 
         
-        # --- ADD THIS LINE HERE ---
+        # --- DYNAMIC WINDOW RESPONSIVENESS FIXES ---
+        self.minsize(1100, 700) # Prevents window from shrinking into UI distortion
         self.protocol("WM_DELETE_WINDOW", self.confirm_logout)
-        # --------------------------
         
+        # Grid row/column weights allow core panels to expand fluidly with window adjustments
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(1, weight=1)
         
         self.build_sidebar()
         self.build_topbar()
         
+        # Main Display View Container
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
         self.main_container.grid(row=1, column=1, sticky="nsew", padx=30, pady=30)
         self.main_container.grid_rowconfigure(0, weight=1)
@@ -45,12 +45,12 @@ class DashboardApp(ctk.CTkToplevel):
         self.show_frame("Dashboard")
 
     def build_sidebar(self):
+        # Sidebar stays anchored to the left panel but stretches vertically
         self.sidebar_frame = ctk.CTkFrame(self, width=250, corner_radius=0, fg_color="#1A3B22")
         self.sidebar_frame.grid(row=0, column=0, rowspan=2, sticky="nsew")
         self.sidebar_frame.grid_propagate(False)
 
-        # Circular Icon at the top left of the SIDEBAR
-        self.icon_path = os.path.join(os.path.dirname(__file__), "assets", "login_logo.png") # The circle icon
+        self.icon_path = os.path.join(os.path.dirname(__file__), "assets", "login_logo.png")
         try:
             self.sidebar_icon_img = ctk.CTkImage(light_image=Image.open(self.icon_path), size=(50, 50))
             self.sidebar_logo = ctk.CTkLabel(self.sidebar_frame, image=self.sidebar_icon_img, text="")
@@ -82,11 +82,11 @@ class DashboardApp(ctk.CTkToplevel):
         exit_btn.pack(side="bottom", fill="x", pady=20, padx=10)
 
     def build_topbar(self):
+        # Topbar stretches across the width of the main content zone
         self.topbar_frame = ctk.CTkFrame(self, height=60, corner_radius=0, fg_color="white")
         self.topbar_frame.grid(row=0, column=1, sticky="ew")
         self.topbar_frame.pack_propagate(False)
 
-        # Company Logo at the top left of the TOPBAR (Next to "Champion Fine Tooling")
         self.logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo.png")
         try:
             self.topbar_logo_img = ctk.CTkImage(light_image=Image.open(self.logo_path), size=(30, 30))
@@ -104,21 +104,18 @@ class DashboardApp(ctk.CTkToplevel):
         self.user_frame.pack(side="right", padx=15, pady=5)
         self.user_frame.bind("<Button-1>", lambda e: self.show_frame("Profile"))
 
-       # Create a tiny invisible frame to stack the texts properly
         self.user_text_frame = ctk.CTkFrame(self.user_frame, fg_color="transparent", cursor="hand2")
         self.user_text_frame.pack(side="right", padx=(10, 0))
         self.user_text_frame.bind("<Button-1>", lambda e: self.show_frame("Profile"))
 
-        # The Name Label (Black)
         self.user_name_label = ctk.CTkLabel(self.user_text_frame, text=f"{self.user_info['full_name']}", 
                                        font=("Inter", 14, "bold"), text_color="black")
-        self.user_name_label.pack(anchor="w") # 'w' forces it to align perfectly LEFT
+        self.user_name_label.pack(anchor="w") 
         self.user_name_label.bind("<Button-1>", lambda e: self.show_frame("Profile"))
 
-        # The Role Label (Green)
         self.user_role_label = ctk.CTkLabel(self.user_text_frame, text=f"{self.user_info['role']}", 
                                        font=("Inter", 12, "bold"), text_color="#2ECC71")
-        self.user_role_label.pack(anchor="w") # 'w' forces it to align perfectly LEFT
+        self.user_role_label.pack(anchor="w") 
         self.user_role_label.bind("<Button-1>", lambda e: self.show_frame("Profile"))
 
         self.profile_pic_label = ctk.CTkLabel(self.user_frame, text="")
@@ -141,18 +138,17 @@ class DashboardApp(ctk.CTkToplevel):
 
     def confirm_exit(self):
         if messagebox.askyesno("Confirm Exit", "Are you sure you want to close the Automated Management System?"):
-            self.master.quit()     # 1. Stops the Tkinter main event loop
-            self.master.destroy()  # 2. Destroys the hidden login window (and this dashboard)
-            sys.exit(0)            # 3. Kills the Python process completely, stopping all background timers
+            self.master.quit()     
+            self.master.destroy()  
+            sys.exit(0)            
     
     def confirm_logout(self):
         if messagebox.askyesno("Confirm Logout", "Are you sure you want to log out of your account?"):
-            self.destroy() # Closes the dashboard
-            self.master.deiconify() # Un-hides the login window!
-            self.master.pass_entry.delete(0, 'end') # Clears the password for security
+            self.destroy() 
+            self.master.deiconify() 
+            self.master.pass_entry.delete(0, 'end') 
 
     def show_frame(self, page_name):
-        # Handle Active Highlighting
         for name, btn in self.nav_buttons.items():
             if name == page_name:
                 btn.configure(fg_color="#2A6038", text_color="#F1C40F")
@@ -176,36 +172,31 @@ class DashboardApp(ctk.CTkToplevel):
             self.current_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
             ctk.CTkLabel(self.current_frame, text=f"{page_name.upper()} MODULE", font=("Inter", 20), text_color="gray").pack(expand=True)
 
-        # THE FIX: This perfectly centers the frame and forces it to fill the safe area
+        # Dynamic expansion properties assigned here to occupy absolute view safe space
         self.current_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=1.0, relheight=1.0)
 
     def get_live_metrics(self):
         metrics = {"total_types": 0, "available_qty": 0, "borrowed_qty": 0, "employees": 0}
         activities = []
-        chart_data = [0, 0, 0, 0] # Maps to: Good, Needs Repair, Damaged, Lost
+        chart_data = [0, 0, 0, 0] 
 
         conn = get_connection()
         if not conn: return metrics, activities, chart_data
 
         try:
             cursor = conn.cursor(dictionary=True)
-            
-            # 1. Total Distinct Tool Profiles (e.g., 2 Types of tools)
             cursor.execute("SELECT COUNT(*) as cnt FROM tool WHERE is_archived = 0")
             metrics["total_types"] = cursor.fetchone()["cnt"] or 0
             
-            # 2. Available & Borrowed Physical Pieces (e.g., 273 actual items)
             cursor.execute("SELECT SUM(quantity_available) as avail, SUM(quantity_total - quantity_available) as borrowed FROM inventory i JOIN tool t ON i.tool_id = t.tool_id WHERE t.is_archived = 0")
             inv = cursor.fetchone()
             if inv:
                 metrics["available_qty"] = int(inv["avail"] or 0)
                 metrics["borrowed_qty"] = int(inv["borrowed"] or 0)
                 
-            # 3. Total Registered Employees
             cursor.execute("SELECT COUNT(*) as cnt FROM user")
             metrics["employees"] = cursor.fetchone()["cnt"] or 0
             
-            # 4. The "Omni-Log" Query: Merges Transactions, Additions, and Archives with Time!
             cursor.execute("""
                 SELECT DATE_FORMAT(DATE_ADD(raw_date, INTERVAL 8 HOUR), '%Y-%m-%d %h:%i %p') as date, action, item, user FROM (
                     SELECT borrow_date as raw_date, type as action, t.name as item, u.full_name as user
@@ -222,7 +213,6 @@ class DashboardApp(ctk.CTkToplevel):
             for row in cursor.fetchall():
                 activities.append((row["date"], row["action"], row["item"], row["user"]))
                 
-            # 5. Chart Metrics
             cursor.execute("SELECT `condition`, COUNT(*) as cnt FROM tool WHERE is_archived = 0 GROUP BY `condition`")
             cond_map = {"Good": 0, "Needs Repair": 1, "Damaged": 2, "Lost": 3}
             for row in cursor.fetchall():
@@ -238,10 +228,9 @@ class DashboardApp(ctk.CTkToplevel):
         return metrics, activities, chart_data
 
     def create_home_dashboard(self):
-        # UI FIX: Made it a horizontal scrollable frame so it never squishes!
-        frame = ctk.CTkScrollableFrame(self.main_container, fg_color="transparent", orientation="horizontal")
+        # Main Scrollable Frame scaling beautifully across full screen
+        frame = ctk.CTkScrollableFrame(self.main_container, fg_color="transparent", orientation="vertical")
         
-        # A container inside the scrollable frame to hold everything nicely
         inner_frame = ctk.CTkFrame(frame, fg_color="transparent")
         inner_frame.pack(fill="both", expand=True)
         
@@ -249,10 +238,10 @@ class DashboardApp(ctk.CTkToplevel):
         
         metrics, activities, chart_data = self.get_live_metrics()
         
+        # Cards wrapper uses dynamic grid layout to evenly allocate extra window width
         cards_frame = ctk.CTkFrame(inner_frame, fg_color="transparent")
         cards_frame.pack(fill="x", pady=(0, 20))
 
-        # Changed Labels to reflect Reality (Quantity vs Profiles)
         data = [
             ("Unique Tool Profiles", str(metrics["total_types"]), "#1E4528"),       
             ("Total Physical Items", str(metrics["available_qty"]), "#2ECC71"),   
@@ -261,26 +250,26 @@ class DashboardApp(ctk.CTkToplevel):
         ]
         
         for i, (title, val, color) in enumerate(data):
-            # minsize=220 prevents the cards from shrinking and forces the scrollbar
-            cards_frame.grid_columnconfigure(i, weight=1, minsize=220) 
+            cards_frame.grid_columnconfigure(i, weight=1, minsize=200) 
             card = ctk.CTkFrame(cards_frame, fg_color=color, corner_radius=10, height=100)
-            card.grid(row=0, column=i, padx=5, sticky="ew")
+            card.grid(row=0, column=i, padx=5, pady=5, sticky="ew")
             card.pack_propagate(False)
             
             txt_color = "black" if color == "#F1C40F" else "white"
             ctk.CTkLabel(card, text=val, font=("Inter", 28, "bold"), text_color=txt_color).pack(anchor="w", padx=20, pady=(20, 0))
             ctk.CTkLabel(card, text=title, font=("Inter", 12), text_color=txt_color).pack(anchor="w", padx=20)
 
+        # Bottom section grid columns scale in 2:1 proportion dynamically 
         bottom_frame = ctk.CTkFrame(inner_frame, fg_color="transparent")
         bottom_frame.pack(fill="both", expand=True)
         
-        # minsize prevents the table and chart from shrinking and forces the scrollbar
-        bottom_frame.grid_columnconfigure(0, weight=2, minsize=550) 
-        bottom_frame.grid_columnconfigure(1, weight=1, minsize=400) 
+        bottom_frame.grid_columnconfigure(0, weight=2, minsize=500) 
+        bottom_frame.grid_columnconfigure(1, weight=1, minsize=350) 
+        bottom_frame.grid_rowconfigure(0, weight=1)
 
-        # Left: Live Recent Activity Table
+        # Left Column Frame: Live Activity Tracker
         activity_card = ctk.CTkFrame(bottom_frame, fg_color="white", corner_radius=10)
-        activity_card.grid(row=0, column=0, sticky="nsew", padx=(5, 10))
+        activity_card.grid(row=0, column=0, shortcut=None, sticky="nsew", padx=(0, 10), pady=10)
         ctk.CTkLabel(activity_card, text="Recent Activity", font=("Inter", 14, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=20)
         
         header_frame = ctk.CTkFrame(activity_card, fg_color="#1E4528", corner_radius=5, height=35)
@@ -301,9 +290,9 @@ class DashboardApp(ctk.CTkToplevel):
                 row_frame.grid_columnconfigure(col, weight=1)
                 ctk.CTkLabel(row_frame, text=text, font=("Inter", 11), text_color="#1A1A1A").grid(row=0, column=col, padx=10, pady=5, sticky="w")
 
-        # Right: Matplotlib Analytics Visualization
+        # Right Column Frame: Analytics Data Visualization
         analytics_card = ctk.CTkFrame(bottom_frame, fg_color="white", corner_radius=10)
-        analytics_card.grid(row=0, column=1, sticky="nsew", padx=(10, 5))
+        analytics_card.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=10)
         ctk.CTkLabel(analytics_card, text="Tool Condition Metrics", font=("Inter", 14, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(20, 5))
 
         self.embed_chart(analytics_card, chart_data)
@@ -337,8 +326,6 @@ class DashboardApp(ctk.CTkToplevel):
         canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=(0, 20))
 
     def on_dashboard_closing(self):
-        """Returns to login screen when the Dashboard 'X' button is clicked."""
         if messagebox.askyesno("Log Out", "Are you sure you want to log out and return to the login page?"):
             self.master.deiconify() 
             self.destroy()
-    
