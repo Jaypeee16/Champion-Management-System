@@ -14,7 +14,6 @@ class RoleManagementView(ctk.CTkFrame):
         self.build_ui()
 
     def build_ui(self):
-        # Split: left = add user form, right = user table
         self.inner = ctk.CTkFrame(self, fg_color="transparent")
         self.inner.grid(row=0, column=0, sticky="nsew")
         self.inner.grid_columnconfigure(0, weight=1, minsize=320)
@@ -38,26 +37,21 @@ class RoleManagementView(ctk.CTkFrame):
         ctk.CTkLabel(form_card,
                      text="Fill in all required fields to create a new account.",
                      font=("Inter", 11), text_color="gray", wraplength=240,
-                     justify="left").pack(anchor="w", padx=20, pady=(0, 20))
+                     justify="left").pack(anchor="w", padx=20, pady=(0, 15))
 
-        # Form fields
-        ctk.CTkLabel(form_card, text="Employee ID *",
-                     font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
-        self.reg_emp_id = ctk.CTkEntry(
-            form_card, placeholder_text="e.g., EMP-001")
-        self.reg_emp_id.pack(fill="x", padx=20, pady=(5, 10))
+        def field(label, ph, show=None):
+            ctk.CTkLabel(form_card, text=label, font=("Inter", 12, "bold"),
+                         text_color="#1A1A1A").pack(anchor="w", padx=20)
+            kw = dict(placeholder_text=ph)
+            if show:
+                kw["show"] = show
+            e = ctk.CTkEntry(form_card, **kw)
+            e.pack(fill="x", padx=20, pady=(5, 10))
+            return e
 
-        ctk.CTkLabel(form_card, text="Full Name *",
-                     font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
-        self.reg_name = ctk.CTkEntry(
-            form_card, placeholder_text="Juan Dela Cruz")
-        self.reg_name.pack(fill="x", padx=20, pady=(5, 10))
-
-        ctk.CTkLabel(form_card, text="Email Address",
-                     font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
-        self.reg_email = ctk.CTkEntry(
-            form_card, placeholder_text="employee@champion.com")
-        self.reg_email.pack(fill="x", padx=20, pady=(5, 10))
+        self.reg_emp_id = field("Employee ID *", "e.g., EMP-001")
+        self.reg_name = field("Full Name *",    "Juan Dela Cruz")
+        self.reg_email = field("Email Address",  "employee@champion.com")
 
         ctk.CTkLabel(form_card, text="Role *",
                      font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
@@ -65,20 +59,13 @@ class RoleManagementView(ctk.CTkFrame):
                                           fg_color="#F9FAFB", text_color="black")
         self.reg_role.pack(fill="x", padx=20, pady=(5, 10))
 
-        ctk.CTkLabel(form_card, text="Password *",
-                     font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
-        self.reg_pass = ctk.CTkEntry(form_card, placeholder_text="Min. 8 characters",
-                                     show="•")
-        self.reg_pass.pack(fill="x", padx=20, pady=(5, 10))
-
-        ctk.CTkLabel(form_card, text="Confirm Password *",
-                     font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
-        self.reg_confirm = ctk.CTkEntry(form_card, placeholder_text="Re-enter password",
-                                        show="•")
-        self.reg_confirm.pack(fill="x", padx=20, pady=(5, 20))
+        self.reg_pass = field(
+            "Password *",         "Min. 8 characters", show="•")
+        self.reg_confirm = field("Confirm Password *",
+                                 "Re-enter password",  show="•")
 
         btn_row = ctk.CTkFrame(form_card, fg_color="transparent")
-        btn_row.pack(fill="x", padx=20, pady=(0, 20))
+        btn_row.pack(fill="x", padx=20, pady=(5, 20))
         btn_row.grid_columnconfigure((0, 1), weight=1)
 
         ctk.CTkButton(btn_row, text="Register",
@@ -104,16 +91,12 @@ class RoleManagementView(ctk.CTkFrame):
                                  "Employee ID, Full Name, and Password are required.",
                                  parent=self.winfo_toplevel())
             return
-
         if pwd != cpwd:
-            messagebox.showerror("Password Mismatch",
-                                 "Passwords do not match.",
+            messagebox.showerror("Password Mismatch", "Passwords do not match.",
                                  parent=self.winfo_toplevel())
             return
-
         if len(pwd) < 8:
-            messagebox.showerror("Weak Password",
-                                 "Password must be at least 8 characters.",
+            messagebox.showerror("Weak Password", "Password must be at least 8 characters.",
                                  parent=self.winfo_toplevel())
             return
 
@@ -123,9 +106,7 @@ class RoleManagementView(ctk.CTkFrame):
         try:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT user_id FROM user WHERE employee_id = %s",
-                (emp_id,)
-            )
+                "SELECT user_id FROM user WHERE employee_id = %s", (emp_id,))
             if cursor.fetchone():
                 messagebox.showerror("Duplicate",
                                      "An account with that Employee ID already exists.",
@@ -140,12 +121,10 @@ class RoleManagementView(ctk.CTkFrame):
             """, (emp_id, name, email or None, hashed, role))
             conn.commit()
 
-            messagebox.showinfo("Success",
-                                f"Account registered successfully as {role}.",
+            messagebox.showinfo("Success", f"Account registered successfully as {role}.",
                                 parent=self.winfo_toplevel())
             self.clear_form()
             self.load_user_table()
-
         except Exception as e:
             messagebox.showerror("Database Error", str(e),
                                  parent=self.winfo_toplevel())
@@ -174,13 +153,12 @@ class RoleManagementView(ctk.CTkFrame):
 
         top = ctk.CTkFrame(table_card, fg_color="transparent")
         top.pack(fill="x", padx=20, pady=(20, 10))
-
         ctk.CTkLabel(top, text="Registered Users",
                      font=("Inter", 16, "bold"), text_color="#1A1A1A").pack(side="left")
 
         self.user_search = ctk.CTkEntry(
             top, placeholder_text="Search name or ID...", width=200)
-        self.user_search.pack(side="right", padx=(10, 0))
+        self.user_search.pack(side="right", padx=(5, 0))
         self.user_search.bind("<Return>", lambda e: self.load_user_table())
         ctk.CTkButton(top, text="Search", width=70,
                       fg_color="#1E4528", hover_color="#14301C",
@@ -192,13 +170,12 @@ class RoleManagementView(ctk.CTkFrame):
                                        self.load_user_table()]).pack(side="right")
 
         headers = ["Employee ID", "Full Name", "Email", "Role", "Actions"]
-        weights = [2, 3, 3, 1, 2]
+        weights = [2,             3,            3,       1,      2]
 
         hdr = ctk.CTkFrame(table_card, fg_color="#1E4528",
                            corner_radius=5, height=38)
         hdr.pack(fill="x", padx=20)
         hdr.pack_propagate(False)
-
         for col, (h, w) in enumerate(zip(headers, weights)):
             hdr.grid_columnconfigure(col, weight=w)
             ctk.CTkLabel(hdr, text=h, font=("Inter", 11, "bold"),
@@ -223,8 +200,7 @@ class RoleManagementView(ctk.CTkFrame):
             sql = """
                 SELECT user_id, employee_id, full_name,
                        IFNULL(email,'—') as email, role
-                FROM user
-                WHERE 1=1
+                FROM user WHERE 1=1
             """
             params = []
             if q:
@@ -248,56 +224,52 @@ class RoleManagementView(ctk.CTkFrame):
                 rf.pack(fill="x", pady=2)
                 rf.pack_propagate(False)
 
-                vals = [row['employee_id'], row['full_name'],
-                        row['email'], row['role']]
-
+                vals = [row["employee_id"], row["full_name"],
+                        row["email"], row["role"]]
                 for col, (val, w) in enumerate(zip(vals, weights)):
                     rf.grid_columnconfigure(col, weight=w)
-                    color = "#2ECC71" if (
-                        col == 3 and val == "Admin") else "#1A1A1A"
+                    color = "#2ECC71" if col == 3 and val == "Admin" else "#1A1A1A"
                     ctk.CTkLabel(rf, text=val, font=("Inter", 11),
-                                 text_color=color).grid(
-                        row=0, column=col, padx=10, pady=8, sticky="w")
+                                 text_color=color).grid(row=0, column=col, padx=10, pady=8, sticky="w")
 
-                # Actions column
                 rf.grid_columnconfigure(4, weight=weights[4])
                 action_frame = ctk.CTkFrame(rf, fg_color="transparent")
                 action_frame.grid(row=0, column=4, padx=5, pady=4, sticky="w")
-
                 ctk.CTkButton(action_frame, text="Edit", width=55, height=28,
                               fg_color="#F1C40F", text_color="black",
                               hover_color="#D4AC0D", font=("Inter", 10, "bold"),
-                              command=lambda r=row: self.open_edit_modal(r)).pack(
-                    side="left", padx=(0, 4))
+                              command=lambda r=row: self.open_edit_modal(r)).pack(side="left", padx=(0, 4))
                 ctk.CTkButton(action_frame, text="Delete", width=55, height=28,
                               fg_color="#FFEAEA", text_color="#D8000C",
                               hover_color="#FFC0C0", font=("Inter", 10, "bold"),
                               command=lambda r=row: self.delete_user(r)).pack(side="left")
 
         except Exception as e:
-            ctk.CTkLabel(self.user_scroll, text=f"Error: {e}",
-                         text_color="red").pack(pady=10)
+            ctk.CTkLabel(self.user_scroll,
+                         text=f"Error: {e}", text_color="red").pack(pady=10)
         finally:
             if conn.is_connected():
                 cursor.close()
                 conn.close()
 
     def open_edit_modal(self, row):
+        # --- FIX: Wider modal so buttons and fields are never compressed ---
         modal = ctk.CTkToplevel(self)
         modal.title(f"Edit User — {row['full_name']}")
-        modal.geometry("420x420")
+        modal.geometry("500x460")
         modal.configure(fg_color="white")
+        modal.resizable(False, False)
         modal.attributes("-topmost", True)
         modal.grab_set()
         modal.update_idletasks()
-        x = (modal.winfo_screenwidth() // 2) - 210
-        y = (modal.winfo_screenheight() // 2) - 210
+        x = (modal.winfo_screenwidth() // 2) - 250
+        y = (modal.winfo_screenheight() // 2) - 230
         modal.geometry(f"+{x}+{y}")
 
         ctk.CTkLabel(modal, text=f"Edit: {row['full_name']}",
-                     font=("Inter", 15, "bold"), text_color="black").pack(pady=(20, 5))
+                     font=("Inter", 15, "bold"), text_color="black").pack(pady=(20, 3))
         ctk.CTkLabel(modal, text=f"Employee ID: {row['employee_id']}",
-                     font=("Inter", 11), text_color="gray").pack(pady=(0, 20))
+                     font=("Inter", 11), text_color="gray").pack(pady=(0, 15))
 
         form = ctk.CTkFrame(modal, fg_color="transparent")
         form.pack(fill="x", padx=30)
@@ -305,26 +277,26 @@ class RoleManagementView(ctk.CTkFrame):
         def make_row(lbl, val):
             ctk.CTkLabel(form, text=lbl, font=("Inter", 11, "bold"),
                          text_color="#1A1A1A").pack(anchor="w")
-            e = ctk.CTkEntry(form)
+            e = ctk.CTkEntry(form, height=35)
             e.insert(0, val)
             e.pack(fill="x", pady=(4, 10))
             return e
 
-        name_e = make_row("Full Name", row['full_name'])
-        email_e = make_row("Email", row['email']
-                           if row['email'] != "—" else "")
+        name_e = make_row("Full Name",  row["full_name"])
+        email_e = make_row(
+            "Email",      row["email"] if row["email"] != "—" else "")
 
         ctk.CTkLabel(form, text="Role", font=("Inter", 11, "bold"),
                      text_color="#1A1A1A").pack(anchor="w")
         role_menu = ctk.CTkOptionMenu(form, values=["Staff", "Admin"],
-                                      fg_color="#F9FAFB", text_color="black")
-        role_menu.set(row['role'])
+                                      fg_color="#F9FAFB", text_color="black", height=35)
+        role_menu.set(row["role"])
         role_menu.pack(fill="x", pady=(4, 10))
 
         ctk.CTkLabel(form, text="New Password (leave blank to keep current)",
                      font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w")
-        pass_e = ctk.CTkEntry(
-            form, placeholder_text="Optional new password", show="•")
+        pass_e = ctk.CTkEntry(form, placeholder_text="Optional new password",
+                              show="•", height=35)
         pass_e.pack(fill="x", pady=(4, 15))
 
         def save_edit():
@@ -354,16 +326,15 @@ class RoleManagementView(ctk.CTkFrame):
                     cursor.execute("""
                         UPDATE user SET full_name=%s, email=%s, role=%s, password_hash=%s
                         WHERE user_id=%s
-                    """, (new_name, new_email or None, new_role, hashed, row['user_id']))
+                    """, (new_name, new_email or None, new_role, hashed, row["user_id"]))
                 else:
                     cursor.execute("""
                         UPDATE user SET full_name=%s, email=%s, role=%s
                         WHERE user_id=%s
-                    """, (new_name, new_email or None, new_role, row['user_id']))
-
+                    """, (new_name, new_email or None, new_role, row["user_id"]))
                 conn.commit()
-                messagebox.showinfo("Updated", "User account updated successfully.",
-                                    parent=modal)
+                messagebox.showinfo(
+                    "Updated", "User account updated successfully.", parent=modal)
                 modal.destroy()
                 self.load_user_table()
             except Exception as e:
@@ -375,12 +346,12 @@ class RoleManagementView(ctk.CTkFrame):
 
         btn_row = ctk.CTkFrame(modal, fg_color="transparent")
         btn_row.pack(fill="x", padx=30, pady=(0, 20))
-        ctk.CTkButton(btn_row, text="Save Changes",
+        ctk.CTkButton(btn_row, text="Save Changes", height=38,
                       fg_color="#1E4528", hover_color="#14301C",
-                      command=save_edit).pack(side="left", padx=(0, 10))
-        ctk.CTkButton(btn_row, text="Cancel",
+                      command=save_edit).pack(side="left", padx=(0, 10), fill="x", expand=True)
+        ctk.CTkButton(btn_row, text="Cancel", height=38,
                       fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC",
-                      command=modal.destroy).pack(side="right")
+                      command=modal.destroy).pack(side="right", fill="x", expand=True)
 
     def delete_user(self, row):
         if messagebox.askyesno(
@@ -395,7 +366,7 @@ class RoleManagementView(ctk.CTkFrame):
             try:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "DELETE FROM user WHERE user_id = %s", (row['user_id'],))
+                    "DELETE FROM user WHERE user_id = %s", (row["user_id"],))
                 conn.commit()
                 messagebox.showinfo("Deleted", "User account deleted.",
                                     parent=self.winfo_toplevel())
