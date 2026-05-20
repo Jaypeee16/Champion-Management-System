@@ -349,7 +349,7 @@ class DashboardApp(ctk.CTkToplevel):
         ]
 
         for i, (title, val, color) in enumerate(data):
-            cards_frame.grid_columnconfigure(i, weight=1, minsize=200)
+            cards_frame.grid_columnconfigure(i, weight=1)
             card = ctk.CTkFrame(cards_frame, fg_color=color,
                                 corner_radius=10, height=100)
             card.grid(row=0, column=i, padx=5, pady=5, sticky="ew")
@@ -363,8 +363,8 @@ class DashboardApp(ctk.CTkToplevel):
 
         bottom_frame = ctk.CTkFrame(inner_frame, fg_color="transparent")
         bottom_frame.pack(fill="both", expand=True)
-        bottom_frame.grid_columnconfigure(0, weight=2, minsize=500)
-        bottom_frame.grid_columnconfigure(1, weight=1, minsize=350)
+        bottom_frame.grid_columnconfigure(0, weight=2) 
+        bottom_frame.grid_columnconfigure(1, weight=1)
         bottom_frame.grid_rowconfigure(0, weight=1)
 
         activity_card = ctk.CTkFrame(
@@ -376,7 +376,7 @@ class DashboardApp(ctk.CTkToplevel):
 
         header_frame = ctk.CTkFrame(
             activity_card, fg_color="#1E4528", corner_radius=5, height=35)
-        header_frame.pack(fill="x", padx=20)
+        header_frame.pack(fill="x", padx=(20, 36))
         header_frame.pack_propagate(False)
         for col, text in enumerate(["Date & Time", "Action", "Item", "User"]):
             header_frame.grid_columnconfigure(col, weight=1)

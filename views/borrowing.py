@@ -7,12 +7,13 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
 
+# THE FIX: Removed orientation="horizontal" so the page shrinks dynamically!
 class BorrowingView(ctk.CTkScrollableFrame):
     def __init__(self, parent):
-        super().__init__(parent, fg_color="transparent", orientation="horizontal")
+        super().__init__(parent, fg_color="transparent")
         
-        self.grid_columnconfigure(0, weight=1, minsize=1000) 
-        self.grid_rowconfigure(2, weight=1)
+        self.grid_columnconfigure(0, weight=1) 
+        self.grid_rowconfigure(1, weight=1)
 
         self.active_borrow_user_id = None
         self.active_borrow_user_name = None
@@ -29,8 +30,10 @@ class BorrowingView(ctk.CTkScrollableFrame):
     def build_forms_section(self):
         forms_container = ctk.CTkFrame(self, fg_color="transparent")
         forms_container.grid(row=0, column=0, sticky="ew", pady=(0, 20))
-        forms_container.grid_columnconfigure(0, weight=1, minsize=450)
-        forms_container.grid_columnconfigure(1, weight=1, minsize=450)
+        
+        # THE FIX: Removed minsize constraints so the left and right panels can squish!
+        forms_container.grid_columnconfigure(0, weight=1)
+        forms_container.grid_columnconfigure(1, weight=1)
 
         # ==========================================
         # LEFT PANEL: THE BORROWING CART
@@ -92,11 +95,10 @@ class BorrowingView(ctk.CTkScrollableFrame):
         self.r_emp_id.bind("<Return>", lambda e: self.verify_return_employee())
         ctk.CTkButton(r_emp_row, text="📷 Scan", width=60, fg_color="#3498DB", hover_color="#2980B9", command=lambda: self.open_scanner(self.r_emp_id, self.verify_return_employee)).pack(side="left")
 
-        # UI FIX: Added the Verified Name Label to the Return Panel!
         self.r_user_name = ctk.CTkLabel(return_card, text="Name: Pending Scan...", font=("Inter", 12), text_color="gray")
         self.r_user_name.pack(anchor="w", padx=20, pady=(0, 15))
 
-        # 2. Tool Return Scanner (NOW SUPPORTS TRN NUMBER)
+        # 2. Tool Return Scanner 
         ctk.CTkLabel(return_card, text="2. Tag ID or Receipt TRN (e.g., TRN-42)", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
         r_tag_row = ctk.CTkFrame(return_card, fg_color="transparent")
         r_tag_row.pack(fill="x", padx=20, pady=(5, 5))
@@ -145,7 +147,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
         ctk.CTkButton(top_bar, text="Search", width=60, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=self.load_transaction_history).pack(side="right")
 
         header_frame = ctk.CTkFrame(history_card, fg_color="#1E4528", corner_radius=5, height=35)
-        header_frame.pack(fill="x", padx=20)
+        header_frame.pack(fill="x", padx=(20, 36))
         header_frame.pack_propagate(False)
 
         self.headers = ["Type", "Tool Name", "Tag ID", "Qty", "Borrower", "Date & Time", "Status"]
@@ -440,7 +442,6 @@ class BorrowingView(ctk.CTkScrollableFrame):
             
             if user:
                 self.active_return_user_id = user['user_id']
-                # FIX: Show the verified Employee name directly on the return panel!
                 self.r_user_name.configure(text=f"✓ Verified: {user['full_name']} ({user['role']})", text_color="#2ECC71")
                 self.r_tag_id.focus() 
             else:
@@ -460,17 +461,15 @@ class BorrowingView(ctk.CTkScrollableFrame):
         tag_input = self.r_tag_id.get().strip()
         if not tag_input: return
         
-        # THE FIX: Allow Admin to type the "TRN" from the receipt instead of scanning the Tag!
         search_val = tag_input
         if tag_input.upper().startswith("TRN-"):
-            search_val = tag_input.upper().replace("TRN-", "").split("-")[0] # Extracts '28' from 'TRN-28-35'
+            search_val = tag_input.upper().replace("TRN-", "").split("-")[0]
 
         conn = get_connection()
         if not conn: return
         try:
             cursor = conn.cursor(dictionary=True)
             
-            # Step 1: Find the actual tool_id based on either the TRN or the Tag
             if search_val.isdigit():
                 cursor.execute("SELECT tool_id FROM transaction WHERE transaction_id = %s AND user_id = %s AND status = 'Active'", (search_val, self.active_return_user_id))
             else:
@@ -482,7 +481,6 @@ class BorrowingView(ctk.CTkScrollableFrame):
                 self.r_record_info.configure(text="❌ No active records found for this Tag/TRN combo.", text_color="#D8000C")
                 return
 
-            # Step 2: Count all active items of that tool currently borrowed by this user
             query = """
                 SELECT t.tool_id, t.name, COUNT(tr.transaction_id) as active_borrows
                 FROM transaction tr
@@ -581,8 +579,6 @@ class BorrowingView(ctk.CTkScrollableFrame):
         try:
             cursor = conn.cursor(dictionary=True)
             
-            # THE FIX: This SQL Query is now 100% compliant with Cloud Database ONLY_FULL_GROUP_BY strict modes.
-            # It will successfully combine items into one row and display the Qty!
             query = """
                 SELECT tr.type, t.name as tool_name, t.tag_id, COUNT(tr.transaction_id) as grouped_qty,
                        u.full_name, tr.status,
@@ -631,7 +627,6 @@ class BorrowingView(ctk.CTkScrollableFrame):
                     ctk.CTkLabel(row_frame, text=text, font=("Inter", 11), text_color=txt_color).grid(row=0, column=col, padx=10, pady=5, sticky="w")
 
         except Exception as e:
-            # Replaced "pass" with a visual error so it never fails silently again!
             ctk.CTkLabel(self.data_scroll, text=f"Data Load Error: {e}", text_color="red").pack(pady=20)
         finally:
             if conn.is_connected(): cursor.close(); conn.close()

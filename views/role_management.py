@@ -174,7 +174,7 @@ class RoleManagementView(ctk.CTkFrame):
 
         hdr = ctk.CTkFrame(table_card, fg_color="#1E4528",
                            corner_radius=5, height=38)
-        hdr.pack(fill="x", padx=20)
+        hdr.pack(fill="x", padx=(20, 36))
         hdr.pack_propagate(False)
         for col, (h, w) in enumerate(zip(headers, weights)):
             hdr.grid_columnconfigure(col, weight=w)

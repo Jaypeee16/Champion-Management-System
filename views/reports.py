@@ -99,7 +99,7 @@ class ReportsView(ctk.CTkFrame):
 
         hdr = ctk.CTkFrame(frame, fg_color="#1E4528",
                            corner_radius=5, height=40)
-        hdr.pack(fill="x", padx=30)
+        hdr.pack(fill="x", padx=(30, 46))
         hdr.pack_propagate(False)
 
         for col, (h, w) in enumerate(zip(headers, weights)):

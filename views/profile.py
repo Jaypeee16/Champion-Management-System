@@ -8,7 +8,6 @@ import re
 import bcrypt
 import qrcode
 
-
 class ProfileView(ctk.CTkFrame):
     def __init__(self, parent, user_info, dashboard_app):
         super().__init__(parent, fg_color="transparent")
@@ -121,7 +120,6 @@ class ProfileView(ctk.CTkFrame):
         right_container.grid_rowconfigure(0, weight=1)
         right_container.grid_rowconfigure(1, weight=1)
 
-        # Top Right: Edit Form
         edit_card = ctk.CTkFrame(
             right_container, fg_color="white", corner_radius=10)
         edit_card.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
@@ -153,7 +151,6 @@ class ProfileView(ctk.CTkFrame):
         ctk.CTkButton(btn_frame, text="Change Password", fg_color="#F1C40F", hover_color="#D4AC0D",
                       text_color="black", font=("Inter", 12, "bold"), command=self.open_password_modal).pack(side="left")
 
-        # Bottom Right: Borrowing History (now live from DB)
         history_card = ctk.CTkFrame(
             right_container, fg_color="white", corner_radius=10)
         history_card.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
@@ -164,13 +161,14 @@ class ProfileView(ctk.CTkFrame):
                      font=("Inter", 14, "bold"), text_color="#1A1A1A").pack(
             anchor="w", padx=30, pady=(20, 5))
 
-        # Table header
+        # THE SQUEEZE & ALIGNMENT FIX: Gave the Date columns a massive '3' weight so they stretch out!
         headers = ["TRN", "Tool Name", "Borrow Date", "Return Date", "Status"]
-        weights = [1, 3, 2, 2, 1]
+        weights = [1, 2, 3, 3, 1]
 
         hdr = ctk.CTkFrame(history_card, fg_color="#1E4528",
                            corner_radius=5, height=32)
-        hdr.pack(fill="x", padx=20)
+        # padding 36 right accounts for the invisible scrollbar width!
+        hdr.pack(fill="x", padx=(20, 36))
         hdr.pack_propagate(False)
 
         for col, (h, w) in enumerate(zip(headers, weights)):
@@ -185,29 +183,23 @@ class ProfileView(ctk.CTkFrame):
         self._load_profile_history(scroll, weights)
 
     def _load_profile_history(self, scroll, weights):
-        """Loads this user's personal borrow history from the transaction table."""
         user_id = self.user_info.get("user_id")
         if not user_id:
-            ctk.CTkLabel(scroll, text="Session error: user_id not found.",
-                         text_color="red").pack(pady=10)
             return
 
         conn = get_connection()
         if not conn:
-            ctk.CTkLabel(scroll, text="Could not connect to database.",
-                         text_color="red").pack(pady=10)
             return
 
         try:
             cursor = conn.cursor(dictionary=True)
+            
+            # THE DATE BUG FIX: Removed double % and shortened to "May 17, 08:45 PM"
             cursor.execute("""
                 SELECT tr.transaction_id,
                        t.name as tool_name,
-                       DATE_FORMAT(DATE_ADD(tr.borrow_date, INTERVAL 8 HOUR),
-                           '%%b %%d %%Y %%h:%%i%%p') as borrow_date,
-                       IF(tr.return_date IS NOT NULL,
-                           DATE_FORMAT(DATE_ADD(tr.return_date, INTERVAL 8 HOUR),
-                               '%%b %%d %%Y %%h:%%i%%p'), '—') as return_date,
+                       DATE_FORMAT(DATE_ADD(tr.borrow_date, INTERVAL 8 HOUR), '%b %d, %h:%i %p') as borrow_date,
+                       IF(tr.return_date IS NOT NULL, DATE_FORMAT(DATE_ADD(tr.return_date, INTERVAL 8 HOUR), '%b %d, %h:%i %p'), '—') as return_date,
                        tr.status
                 FROM transaction tr
                 JOIN tool t ON tr.tool_id = t.tool_id
@@ -241,7 +233,7 @@ class ProfileView(ctk.CTkFrame):
                     color = "#1A1A1A"
                     if col == 4:
                         color = "#D8000C" if val == "Active" else "#2ECC71"
-                    ctk.CTkLabel(rf, text=val, font=("Inter", 10),
+                    ctk.CTkLabel(rf, text=val, font=("Inter", 11),
                                  text_color=color).grid(
                         row=0, column=col, padx=8, pady=5, sticky="w")
 

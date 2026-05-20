@@ -21,6 +21,7 @@ class LoginApp(ctk.CTk):
         self.title("Champion Fine Tooling - Automated Management System")
         self.configure(fg_color="#F4F6F8") 
         self.minsize(450, 680)
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         window_width = 450
         window_height = 680
@@ -493,10 +494,8 @@ class LoginApp(ctk.CTk):
 
     def on_closing(self):
         if messagebox.askyesno("Exit Application", "Are you sure you want to close the entire system?"):
-            self.quit()     
-            self.destroy()  
-            import sys
-            sys.exit(0)     
+            import os
+            os._exit(0)    
 
 if __name__ == "__main__":
     app = LoginApp()

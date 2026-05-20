@@ -98,10 +98,10 @@ class InventoryView(ctk.CTkFrame):
         self.reset_btn.pack(side="left", padx=(10, 0))
 
         header_frame = ctk.CTkFrame(table_frame, fg_color="#1E4528", corner_radius=5, height=40)
-        header_frame.pack(fill="x", padx=20)
+        # THE ALIGNMENT FIX: 20px padding on the left, 36px on the right (20 + 16px scrollbar)
+        header_frame.pack(fill="x", padx=(20, 36))
         header_frame.pack_propagate(False)
 
-        # UI FIX: Swapped "Description" for "Category" and "Supplier" so it's visible on the main page
         self.headers = ["PID", "Name", "Category", "Supplier", "Price", "Qty Avail.", "Location", "Status"]
         self.weights = [1, 2, 2, 2, 1, 1, 2, 1]
 
@@ -122,7 +122,6 @@ class InventoryView(ctk.CTkFrame):
         try:
             cursor = conn.cursor(dictionary=True)
             
-            # THE BUG FIX: Selecting quantity_available instead of quantity_total!
             base_query = """
                 SELECT t.tool_id, t.name, IFNULL(t.description, 'N/A') as description, t.price, 
                        IFNULL(i.quantity_available, 0) as qty_avail, IFNULL(i.quantity_total, 0) as qty_tot, 
@@ -170,7 +169,6 @@ class InventoryView(ctk.CTkFrame):
 
             for i, row in enumerate(results):
                 pid = str(row['tool_id'])
-                # We save the raw row to the Hash Table so the edit modal can still pull the "quantity_total"
                 self.tool_hash_table[pid] = row 
                 
                 display_data = [pid, row['name'], row['category'], row['supplier'], row['price'], f"{row['qty_avail']} / {row['qty_tot']}", row['location'], row['status']]
@@ -275,10 +273,7 @@ class InventoryView(ctk.CTkFrame):
         sup_entry = create_modal_row(form_frame, "Supplier", data['supplier'])
         name_entry = create_modal_row(form_frame, "Name", data['name'])
         price_entry = create_modal_row(form_frame, "Price", data['price'])
-        
-        # When editing, we edit the Total max capacity
         qty_entry = create_modal_row(form_frame, "Max Qty", data['qty_tot'])
-        
         loc_entry = create_modal_row(form_frame, "Location", data['location'])
         desc_entry = create_modal_row(form_frame, "Descript.", data['description'])
         
@@ -306,7 +301,6 @@ class InventoryView(ctk.CTkFrame):
                     cursor.execute("UPDATE tool SET category=%s, supplier=%s, name=%s, price=%s, location=%s, description=%s, `condition`=%s WHERE tool_id=%s",
                                    (cat_entry.get(), sup_entry.get(), name_entry.get(), new_price, loc_entry.get(), desc_entry.get(), status_menu.get(), lookup_id))
                     
-                    # Update inventory safely. We adjust total, and available jumps proportionally.
                     qty_difference = new_qty - int(data['qty_tot'])
                     cursor.execute("UPDATE inventory SET quantity_total=%s, quantity_available=quantity_available + %s WHERE tool_id=%s", 
                                    (new_qty, qty_difference, lookup_id))

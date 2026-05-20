@@ -159,11 +159,9 @@ class TrackingView(ctk.CTkFrame):
                 SELECT tr.transaction_id, tr.type, t.name as tool_name,
                        IFNULL(t.tag_id,'Unassigned') as tag_id,
                        u.full_name,
-                       DATE_FORMAT(DATE_ADD(tr.borrow_date, INTERVAL 8 HOUR),
-                           '%%b %%d %%Y %%h:%%i%%p') as borrow_date,
+                       DATE_FORMAT(DATE_ADD(tr.borrow_date, INTERVAL 8 HOUR), '%b %d, %Y %h:%i %p') as borrow_date,
                        IF(tr.return_date IS NOT NULL,
-                           DATE_FORMAT(DATE_ADD(tr.return_date, INTERVAL 8 HOUR),
-                               '%%b %%d %%Y %%h:%%i%%p'), '—') as return_date,
+                           DATE_FORMAT(DATE_ADD(tr.borrow_date, INTERVAL 8 HOUR), '%b %d, %Y %h:%i %p'), '—') as return_date,
                        tr.status
                 FROM transaction tr
                 JOIN tool t ON tr.tool_id = t.tool_id

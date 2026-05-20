@@ -45,7 +45,7 @@ class TaggingView(ctk.CTkFrame):
         self.scan_test_btn.pack(side="right", padx=10)
 
         table_header = ctk.CTkFrame(main_frame, fg_color="#1E4528", corner_radius=5, height=40)
-        table_header.pack(fill="x", padx=20)
+        table_header.pack(fill="x", padx=(20, 36))
         table_header.pack_propagate(False)
 
         # UI FIX: Swapped Description for Category and Supplier!
