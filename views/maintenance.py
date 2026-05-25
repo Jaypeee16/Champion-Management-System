@@ -18,38 +18,28 @@ class MaintenanceView(ctk.CTkFrame):
         self.build_ui()
 
     def build_ui(self):
-        # Tab bar — consistent with reports/tracking style
-        tab_bar = ctk.CTkFrame(self, fg_color="white",
-                               corner_radius=10, height=50)
-        tab_bar.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-        tab_bar.grid_propagate(False)
+        # 1. Container for the Segmented Button
+        top_bar = ctk.CTkFrame(self, fg_color="transparent")
+        top_bar.grid(row=0, column=0, sticky="ew", pady=(0, 10))
 
-        self.tab_content = ctk.CTkFrame(self, fg_color="transparent")
-        self.tab_content.grid(row=1, column=0, sticky="nsew")
-        self.tab_content.grid_columnconfigure(0, weight=1)
-        self.tab_content.grid_rowconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        # 2. Define the tabs
+        tabs = ["Manage Issues", "Archived Tools", "Database Backup"]
+        
+        # 3. Create the Segmented Button
+        self.seg_btn = ctk.CTkSegmentedButton(
+            top_bar, values=tabs, command=self.switch_tab,
+            fg_color="#F0F0F0", selected_color="#1E4528", 
+            selected_hover_color="#14301C", takefocus=True
+        )
+        self.seg_btn.pack(side="right", padx=20)
+        self.seg_btn.set(tabs[0]) # Default tab
 
-        tabs = [
-            ("Backup Data", "backup"),
-            ("Restore Data", "restore"),
-            ("Archived Tools", "archived"),
-        ]
-
-        self.tab_buttons = {}
-        for text, key in tabs:
-            btn = ctk.CTkButton(
-                tab_bar, text=text,
-                fg_color="#1E4528" if key == "backup" else "transparent",
-                text_color="white" if key == "backup" else "#1A1A1A",
-                hover_color="#2A6038",
-                font=("Inter", 12, "bold"),
-                command=lambda k=key: self.switch_tab(k, tabs)
-            )
-            btn.pack(side="left", padx=10, pady=8)
-            self.tab_buttons[key] = btn
-
-        self.render_backup_tab()
+        # 4. Content Frame (This is where the actual module pages appear)
+        self.content_frame = ctk.CTkFrame(self, fg_color="white", corner_radius=10)
+        self.content_frame.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 20))
+        
+        # 5. Load first tab
+        self.switch_tab(tabs[0])
 
     def switch_tab(self, key, tabs):
         for widget in self.tab_content.winfo_children():

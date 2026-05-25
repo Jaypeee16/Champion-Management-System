@@ -1,46 +1,74 @@
 from database import get_connection
 
 def upgrade_database():
-    print("Connecting to Aiven to upgrade database schema...")
+    print("Connecting to upgrade database schema for ERP features...")
     try:
         conn = get_connection()
         if not conn:
-            print("❌ ABORTED: Could not reach the database. Check your network or Aiven IP Filter.")
+            print("❌ ABORTED: Could not reach the database.")
             return
             
         cursor = conn.cursor()
         
-        # List all the columns you want to ensure exist in the database
+        # 1. Alter existing tables (Consumables & Accountability)
         alter_commands = [
-            "ALTER TABLE tool ADD COLUMN category VARCHAR(100) DEFAULT 'Tools'",
-            "ALTER TABLE tool ADD COLUMN price DECIMAL(10,2) DEFAULT 0.00",
-            "ALTER TABLE tool ADD COLUMN location VARCHAR(100) DEFAULT 'N/A'",
-            
-            # --- YOUR NEW OMNI-LOG TRACKER COLUMN ---
-            "ALTER TABLE tool ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+            "ALTER TABLE tool ADD COLUMN item_type VARCHAR(50) DEFAULT 'Equipment'", 
+            "ALTER TABLE tool ADD COLUMN unit_of_measure VARCHAR(20) DEFAULT 'pcs'",
+            "ALTER TABLE transaction ADD COLUMN issued_by INT NULL",
+            "ALTER TABLE transaction ADD COLUMN received_by INT NULL"
         ]
 
-        print("Executing schema upgrades...")
-        
-        # Loop through each command individually so a duplicate doesn't stop the script!
+        print("Executing schema alterations...")
         for cmd in alter_commands:
             try:
                 cursor.execute(cmd)
-                print("✅ Successfully added column!")
+                print("✅ Added new column!")
             except Exception as e:
-                # If the column is already there, just quietly skip it
                 if "Duplicate column name" in str(e):
                     print("⏭️ Column already exists, skipping.")
                 else:
                     print(f"⚠️ Error: {e}")
+
+        # 2. Create New Tables (Projects & Issues)
+        create_commands = [
+            """CREATE TABLE IF NOT EXISTS projects (
+                project_id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                client VARCHAR(255),
+                location VARCHAR(255),
+                start_date DATE,
+                end_date DATE,
+                status VARCHAR(50) DEFAULT 'Pending',
+                manager_id INT
+            )""",
+            """CREATE TABLE IF NOT EXISTS project_requirements (
+                req_id INT AUTO_INCREMENT PRIMARY KEY,
+                project_id INT,
+                tool_id INT,
+                quantity INT,
+                status VARCHAR(50) DEFAULT 'Pending'
+            )""",
+            """CREATE TABLE IF NOT EXISTS issues_log (
+                issue_id INT AUTO_INCREMENT PRIMARY KEY,
+                tool_id INT,
+                reported_by INT,
+                issue_desc TEXT,
+                status VARCHAR(50) DEFAULT 'Open',
+                reported_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )"""
+        ]
+
+        print("Creating new ERP tables...")
+        for cmd in create_commands:
+            cursor.execute(cmd)
+            print("✅ Verified table exists.")
         
         conn.commit()
-        print("🎉 Database upgrade finished perfectly!")
+        print("🎉 ERP Database upgrade finished perfectly!")
         
     except Exception as e:
         print(f"Critical Error: {e}")
     finally:
-        # Safe closure
         if 'conn' in locals() and conn is not None and conn.is_connected():
             cursor.close()
             conn.close()

@@ -7,8 +7,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
 
-# THE FIX: Removed orientation="horizontal" so the page shrinks dynamically!
-class BorrowingView(ctk.CTkScrollableFrame):
+class BorrowingView(ctk.CTkFrame): # Changed from ScrollableFrame to standard Frame
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")
         
@@ -23,95 +22,91 @@ class BorrowingView(ctk.CTkScrollableFrame):
         self.active_return_tool_id = None
         self.max_returnable = 0
 
-        self.build_forms_section()
+        self.build_top_tabs()
         self.build_history_table()
         self.load_transaction_history()
 
-    def build_forms_section(self):
-        forms_container = ctk.CTkFrame(self, fg_color="transparent")
-        forms_container.grid(row=0, column=0, sticky="ew", pady=(0, 20))
+    def build_top_tabs(self):
+        # THE FIX: Converted side-by-side layout into clean Tabs!
+        self.tabview = ctk.CTkTabview(self, fg_color="white", corner_radius=10)
+        self.tabview.grid(row=0, column=0, sticky="ew", pady=(0, 20))
         
-        # THE FIX: Removed minsize constraints so the left and right panels can squish!
-        forms_container.grid_columnconfigure(0, weight=1)
-        forms_container.grid_columnconfigure(1, weight=1)
+        self.tabview.add("📤 Tool Issuance")
+        self.tabview.add("📥 Tool Retrieval")
 
-        # ==========================================
-        # LEFT PANEL: THE BORROWING CART
-        # ==========================================
-        borrow_card = ctk.CTkFrame(forms_container, fg_color="white", corner_radius=10)
-        borrow_card.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        self.build_issuance_tab(self.tabview.tab("📤 Tool Issuance"))
+        self.build_retrieval_tab(self.tabview.tab("📥 Tool Retrieval"))
+
+    def build_issuance_tab(self, parent_tab):
+        parent_tab.grid_columnconfigure(0, weight=1)
         
-        ctk.CTkLabel(borrow_card, text="📤 Multi-Tool Checkout", font=("Inter", 16, "bold"), text_color="#1E4528").pack(anchor="w", padx=20, pady=(20, 5))
-        ctk.CTkLabel(borrow_card, text="Scan Employee ID, then scan tools to add/increment them in the cart.", font=("Inter", 11), text_color="gray").pack(anchor="w", padx=20, pady=(0, 15))
+        ctk.CTkLabel(parent_tab, text="Multi-Tool Deployment", font=("Inter", 16, "bold"), text_color="#1E4528").pack(anchor="w", padx=20, pady=(10, 5))
+        ctk.CTkLabel(parent_tab, text="Scan Employee ID, then scan tools to add them to the deployment cart.", font=("Inter", 11), text_color="gray").pack(anchor="w", padx=20, pady=(0, 15))
 
         # 1. Borrower Section
-        ctk.CTkLabel(borrow_card, text="1. Borrower ID (Employee ID)", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
-        b_emp_row = ctk.CTkFrame(borrow_card, fg_color="transparent")
+        ctk.CTkLabel(parent_tab, text="1. Assignee ID (Employee ID)", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        b_emp_row = ctk.CTkFrame(parent_tab, fg_color="transparent")
         b_emp_row.pack(fill="x", padx=20, pady=(5, 5))
         self.b_emp_id = ctk.CTkEntry(b_emp_row, placeholder_text="Scan ID & Press Enter...")
         self.b_emp_id.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.b_emp_id.bind("<Return>", lambda e: self.verify_borrower())
         ctk.CTkButton(b_emp_row, text="📷 Scan", width=60, fg_color="#3498DB", hover_color="#2980B9", command=lambda: self.open_scanner(self.b_emp_id, self.verify_borrower)).pack(side="left")
         
-        self.b_user_name = ctk.CTkLabel(borrow_card, text="Name: Pending Scan...", font=("Inter", 12), text_color="gray")
+        self.b_user_name = ctk.CTkLabel(parent_tab, text="Name: Pending Scan...", font=("Inter", 12), text_color="gray")
         self.b_user_name.pack(anchor="w", padx=20, pady=(0, 15))
 
         # 2. Add To Cart Scanner
-        ctk.CTkLabel(borrow_card, text="2. Add Tools to Cart (Scan Tag ID)", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
-        b_tag_row = ctk.CTkFrame(borrow_card, fg_color="transparent")
+        ctk.CTkLabel(parent_tab, text="2. Add Tools to Deployment Cart", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        b_tag_row = ctk.CTkFrame(parent_tab, fg_color="transparent")
         b_tag_row.pack(fill="x", padx=20, pady=(5, 5))
         self.b_tag_id = ctk.CTkEntry(b_tag_row, placeholder_text="Scan Tool Tag & Press Enter...")
         self.b_tag_id.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.b_tag_id.bind("<Return>", lambda e: self.add_tool_to_cart())
         ctk.CTkButton(b_tag_row, text="📷 Scan", width=60, fg_color="#3498DB", hover_color="#2980B9", command=lambda: self.open_scanner(self.b_tag_id, self.add_tool_to_cart)).pack(side="left")
 
-        self.cart_frame = ctk.CTkScrollableFrame(borrow_card, fg_color="#F9FAFB", height=120, corner_radius=5)
+        self.cart_frame = ctk.CTkScrollableFrame(parent_tab, fg_color="#F9FAFB", height=120, corner_radius=5)
         self.cart_frame.pack(fill="x", padx=20, pady=(10, 15))
         self.refresh_cart_ui() 
 
         # 3. Purpose & Confirm
-        ctk.CTkLabel(borrow_card, text="3. Purpose / Project", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
-        self.b_purpose = ctk.CTkEntry(borrow_card, placeholder_text="e.g., Maintenance Room B")
+        ctk.CTkLabel(parent_tab, text="3. Target Project / Location", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        self.b_purpose = ctk.CTkEntry(parent_tab, placeholder_text="e.g., Ayala Alabang Project A")
         self.b_purpose.pack(fill="x", padx=20, pady=(5, 20))
 
-        ctk.CTkButton(borrow_card, text="Confirm Borrow & Print Receipt", height=40, fg_color="#1E4528", hover_color="#14301C", font=("Inter", 13, "bold"), command=self.execute_borrow).pack(fill="x", padx=20, pady=(0, 20))
+        ctk.CTkButton(parent_tab, text="Issue Tools & Print Receipt", height=40, fg_color="#1E4528", hover_color="#14301C", font=("Inter", 13, "bold"), command=self.execute_borrow).pack(fill="x", padx=20, pady=(0, 20))
 
+    def build_retrieval_tab(self, parent_tab):
+        parent_tab.grid_columnconfigure(0, weight=1)
 
-        # ==========================================
-        # RIGHT PANEL: THE DUAL-AUTH RETURN DESK
-        # ==========================================
-        return_card = ctk.CTkFrame(forms_container, fg_color="white", corner_radius=10)
-        return_card.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
-
-        ctk.CTkLabel(return_card, text="📥 Return Tool (Secure Audit)", font=("Inter", 16, "bold"), text_color="#F1C40F").pack(anchor="w", padx=20, pady=(20, 5))
-        ctk.CTkLabel(return_card, text="Scan Employee ID and Tool Tag (or enter Receipt TRN).", font=("Inter", 11), text_color="gray").pack(anchor="w", padx=20, pady=(0, 15))
+        ctk.CTkLabel(parent_tab, text="Secure Tool Retrieval", font=("Inter", 16, "bold"), text_color="#F1C40F").pack(anchor="w", padx=20, pady=(10, 5))
+        ctk.CTkLabel(parent_tab, text="Scan Employee ID and Tool Tag (or enter TRN) to restock items.", font=("Inter", 11), text_color="gray").pack(anchor="w", padx=20, pady=(0, 15))
 
         # 1. Employee Auth for Return
-        ctk.CTkLabel(return_card, text="1. Employee ID (Who is returning?)", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
-        r_emp_row = ctk.CTkFrame(return_card, fg_color="transparent")
+        ctk.CTkLabel(parent_tab, text="1. Surrendering Employee ID", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        r_emp_row = ctk.CTkFrame(parent_tab, fg_color="transparent")
         r_emp_row.pack(fill="x", padx=20, pady=(5, 5))
         self.r_emp_id = ctk.CTkEntry(r_emp_row, placeholder_text="Scan ID & Press Enter...")
         self.r_emp_id.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.r_emp_id.bind("<Return>", lambda e: self.verify_return_employee())
         ctk.CTkButton(r_emp_row, text="📷 Scan", width=60, fg_color="#3498DB", hover_color="#2980B9", command=lambda: self.open_scanner(self.r_emp_id, self.verify_return_employee)).pack(side="left")
 
-        self.r_user_name = ctk.CTkLabel(return_card, text="Name: Pending Scan...", font=("Inter", 12), text_color="gray")
+        self.r_user_name = ctk.CTkLabel(parent_tab, text="Name: Pending Scan...", font=("Inter", 12), text_color="gray")
         self.r_user_name.pack(anchor="w", padx=20, pady=(0, 15))
 
         # 2. Tool Return Scanner 
-        ctk.CTkLabel(return_card, text="2. Tag ID or Receipt TRN (e.g., TRN-42)", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
-        r_tag_row = ctk.CTkFrame(return_card, fg_color="transparent")
+        ctk.CTkLabel(parent_tab, text="2. Tag ID or Receipt TRN (e.g., TRN-42)", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        r_tag_row = ctk.CTkFrame(parent_tab, fg_color="transparent")
         r_tag_row.pack(fill="x", padx=20, pady=(5, 5))
         self.r_tag_id = ctk.CTkEntry(r_tag_row, placeholder_text="Scan Tag or enter TRN...")
         self.r_tag_id.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.r_tag_id.bind("<Return>", lambda e: self.verify_tool_for_return())
         ctk.CTkButton(r_tag_row, text="📷 Scan", width=60, fg_color="#3498DB", hover_color="#2980B9", command=lambda: self.open_scanner(self.r_tag_id, self.verify_tool_for_return)).pack(side="left")
 
-        self.r_record_info = ctk.CTkLabel(return_card, text="Record: Pending Scan...", font=("Inter", 12), text_color="gray", justify="left")
+        self.r_record_info = ctk.CTkLabel(parent_tab, text="Record: Pending Scan...", font=("Inter", 12), text_color="gray", justify="left")
         self.r_record_info.pack(anchor="w", padx=20, pady=(0, 15))
 
         # 3. Condition Audit & Qty
-        cond_qty_row = ctk.CTkFrame(return_card, fg_color="transparent")
+        cond_qty_row = ctk.CTkFrame(parent_tab, fg_color="transparent")
         cond_qty_row.pack(fill="x", padx=20, pady=(5, 20))
         cond_qty_row.grid_columnconfigure(0, weight=2)
         cond_qty_row.grid_columnconfigure(1, weight=1)
@@ -129,7 +124,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
         self.r_qty.pack(fill="x", pady=(5, 0))
         self.r_qty.insert(0, "1")
 
-        ctk.CTkButton(return_card, text="Confirm Return & Restock", height=40, fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", font=("Inter", 13, "bold"), command=self.execute_return).pack(fill="x", padx=20, pady=(0, 20))
+        ctk.CTkButton(parent_tab, text="Confirm Retrieval & Restock", height=40, fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", font=("Inter", 13, "bold"), command=self.execute_return).pack(fill="x", padx=20, pady=(0, 20))
 
 
     def build_history_table(self):
@@ -139,7 +134,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
         top_bar = ctk.CTkFrame(history_card, fg_color="transparent")
         top_bar.pack(fill="x", padx=20, pady=(20, 10))
         
-        ctk.CTkLabel(top_bar, text="Transaction History", font=("Inter", 16, "bold"), text_color="#1A1A1A").pack(side="left")
+        ctk.CTkLabel(top_bar, text="Deployment History", font=("Inter", 16, "bold"), text_color="#1A1A1A").pack(side="left")
         
         self.search_entry = ctk.CTkEntry(top_bar, placeholder_text="Search Name or Tag...", width=200)
         self.search_entry.pack(side="right", padx=(10, 0))
@@ -150,7 +145,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
         header_frame.pack(fill="x", padx=(20, 36))
         header_frame.pack_propagate(False)
 
-        self.headers = ["Type", "Tool Name", "Tag ID", "Qty", "Borrower", "Date & Time", "Status"]
+        self.headers = ["Type", "Item Name", "Tag ID", "Qty", "Assignee", "Date & Time", "Status"]
         self.weights = [1, 2, 2, 1, 2, 2, 1]
 
         for col, (text, weight) in enumerate(zip(self.headers, self.weights)):
@@ -159,7 +154,6 @@ class BorrowingView(ctk.CTkScrollableFrame):
 
         self.data_scroll = ctk.CTkScrollableFrame(history_card, fg_color="transparent", height=400)
         self.data_scroll.pack(fill="both", expand=True, padx=20, pady=(5, 15))
-
 
     # ==========================================
     # LOGIC: TURBO WEBCAM SCANNER
@@ -213,7 +207,6 @@ class BorrowingView(ctk.CTkScrollableFrame):
             target_entry.delete(0, 'end')
             target_entry.insert(0, detected_data)
             trigger_method()
-
 
     # ==========================================
     # LOGIC: BORROWING & CART VERIFICATION
@@ -354,7 +347,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
                 for _ in range(item['qty_borrowed']):
                     cursor.execute("""
                         INSERT INTO transaction (user_id, tool_id, type, borrow_date, purpose, status, condition_at_borrow) 
-                        VALUES (%s, %s, 'Borrow', NOW(), %s, 'Active', %s)
+                        VALUES (%s, %s, 'Issue', NOW(), %s, 'Active', %s)
                     """, (self.active_borrow_user_id, item['id'], purpose, item['cond']))
                     transaction_ids.append(str(cursor.lastrowid))
                 
@@ -363,7 +356,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
             conn.commit()
             
             total_items = sum(item['qty_borrowed'] for item in self.borrow_cart)
-            messagebox.showinfo("Success", f"{total_items} items checked out successfully! Generating receipt...", parent=self.winfo_toplevel())
+            messagebox.showinfo("Success", f"{total_items} items issued successfully! Generating receipt...", parent=self.winfo_toplevel())
             
             master_trans_id = f"{transaction_ids[0]}-{transaction_ids[-1]}" if len(transaction_ids) > 1 else transaction_ids[0]
             self.print_master_receipt(master_trans_id, self.active_borrow_user_name, receipt_tool_list, purpose)
@@ -398,13 +391,13 @@ class BorrowingView(ctk.CTkScrollableFrame):
             current_time = datetime.now().strftime("%B %d, %Y - %I:%M %p")
             
             draw.text((20, 20), "CHAMPION FINE TOOLING", fill="#1E4528", font=font_title)
-            draw.text((20, 60), "MASTER CHECKOUT RECEIPT", fill="black", font=font_title)
+            draw.text((20, 60), "MASTER DEPLOYMENT RECEIPT", fill="black", font=font_title)
             draw.line((20, 100, 580, 100), fill="black", width=2)
             
             draw.text((20, 120), f"Transaction ID(s): TRN-[{trans_id_range}]", fill="black", font=font_body)
             draw.text((20, 160), f"Date & Time: {current_time}", fill="black", font=font_body)
-            draw.text((20, 200), f"Borrower: {b_name}", fill="black", font=font_body)
-            draw.text((20, 240), f"Project/Purpose: {purpose}", fill="black", font=font_body)
+            draw.text((20, 200), f"Issued To: {b_name}", fill="black", font=font_body)
+            draw.text((20, 240), f"Project/Location: {purpose}", fill="black", font=font_body)
             
             draw.text((20, 290), "Items Issued:", fill="black", font=font_bold)
             
@@ -494,7 +487,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
             if record:
                 self.active_return_tool_id = record['tool_id']
                 self.max_returnable = record['active_borrows']
-                self.r_record_info.configure(text=f"✓ Tool Identified: {record['name']}\nCurrently Borrowed Out: {record['active_borrows']}", text_color="#2ECC71")
+                self.r_record_info.configure(text=f"✓ Tool Identified: {record['name']}\nCurrently Deployed Out: {record['active_borrows']}", text_color="#2ECC71")
                 
                 self.r_qty.delete(0, 'end')
                 self.r_qty.insert(0, "1")
@@ -521,7 +514,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
             return
             
         if return_qty > self.max_returnable:
-            messagebox.showerror("Error", f"Cannot return {return_qty}. You only have {self.max_returnable} of these checked out.", parent=self.winfo_toplevel())
+            messagebox.showerror("Error", f"Cannot retrieve {return_qty}. You only have {self.max_returnable} of these deployed.", parent=self.winfo_toplevel())
             return
 
         new_cond = self.r_condition.get()
@@ -537,7 +530,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
             for trans in transactions_to_close:
                 cursor.execute("""
                     UPDATE transaction 
-                    SET status = 'Returned', return_date = NOW(), type = 'Return', condition_at_return = %s 
+                    SET status = 'Returned', return_date = NOW(), type = 'Retrieval', condition_at_return = %s 
                     WHERE transaction_id = %s
                 """, (new_cond, trans['transaction_id']))
             
@@ -545,7 +538,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
             cursor.execute("UPDATE tool SET `condition` = %s WHERE tool_id = %s", (new_cond, self.active_return_tool_id))
             
             conn.commit()
-            messagebox.showinfo("Success", f"Successfully returned {return_qty} item(s) and restocked inventory!", parent=self.winfo_toplevel())
+            messagebox.showinfo("Success", f"Successfully retrieved {return_qty} item(s) and restocked inventory!", parent=self.winfo_toplevel())
             
             self.r_emp_id.delete(0, 'end')
             self.r_tag_id.delete(0, 'end')
@@ -566,7 +559,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
             if conn.is_connected(): cursor.close(); conn.close()
 
     # ==========================================
-    # LOGIC: CRASH-PROOF GROUPED HISTORY TABLE
+    # LOGIC: PAGINATED HISTORY TABLE (LAG FIX)
     # ==========================================
     def load_transaction_history(self):
         for widget in self.data_scroll.winfo_children():
@@ -588,6 +581,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
                 JOIN user u ON tr.user_id = u.user_id
             """
             
+            # THE FIX: Added 'LIMIT 50' to stop Tkinter from rendering thousands of rows and crashing/lagging!
             if search_q:
                 query += " WHERE u.full_name LIKE %s OR t.tag_id LIKE %s OR t.name LIKE %s"
                 query += " GROUP BY tr.type, t.name, t.tag_id, u.full_name, tr.status, DATE_FORMAT(tr.borrow_date, '%Y-%m-%d %H:%i') ORDER BY MAX(tr.borrow_date) DESC LIMIT 50"
@@ -621,7 +615,7 @@ class BorrowingView(ctk.CTkScrollableFrame):
                     row_frame.grid_columnconfigure(col, weight=weight)
                     
                     txt_color = "#1A1A1A"
-                    if col == 6: # Status column
+                    if col == 6: 
                         txt_color = "#D8000C" if text == "Active" else "#2ECC71"
                         
                     ctk.CTkLabel(row_frame, text=text, font=("Inter", 11), text_color=txt_color).grid(row=0, column=col, padx=10, pady=5, sticky="w")
