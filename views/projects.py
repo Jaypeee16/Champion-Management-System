@@ -40,12 +40,18 @@ class ProjectsView(ctk.CTkFrame):
         def field(label, ph):
             ctk.CTkLabel(form_card, text=label, font=("Inter", 12, "bold"),
                          text_color="#1A1A1A").pack(anchor="w", padx=20)
-            e = ctk.CTkEntry(form_card, placeholder_text=ph)
+            # FIX: Added takefocus=True for tab navigation
+            e = ctk.CTkEntry(form_card, placeholder_text=ph, takefocus=True)
             e.pack(fill="x", padx=20, pady=(5, 10))
             return e
 
         self.p_name = field("Project Name *", "e.g., Ayala Alabang Phase 2")
-        self.p_desc = field("Project Description", "Brief scope of work...")
+        
+        # FIX: Project Description is now a larger CTkTextbox
+        ctk.CTkLabel(form_card, text="Project Description", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        self.p_desc = ctk.CTkTextbox(form_card, height=80, fg_color="#F9FAFB", border_width=1, border_color="#E0E0E0")
+        self.p_desc.pack(fill="x", padx=20, pady=(5, 10))
+
         self.p_head = field("Project Head / Manager *", "e.g., Engr. Juan Santos")
         self.p_client = field("Client / Company *", "e.g., Makati Dev Corp")
         self.p_location = field("Site Location", "e.g., Block 4, Alabang")
@@ -57,9 +63,8 @@ class ProjectsView(ctk.CTkFrame):
         worker_input_row = ctk.CTkFrame(form_card, fg_color="transparent")
         worker_input_row.pack(fill="x", padx=20, pady=(5, 5))
 
-        self.worker_single_entry = ctk.CTkEntry(worker_input_row,
-                                                 placeholder_text="Employee ID or name...",
-                                                 )
+        # FIX: Added takefocus=True
+        self.worker_single_entry = ctk.CTkEntry(worker_input_row, placeholder_text="Employee ID or name...", takefocus=True)
         self.worker_single_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.worker_single_entry.bind("<Return>", lambda e: self._add_worker_from_entry())
 
@@ -174,11 +179,11 @@ class ProjectsView(ctk.CTkFrame):
         search_frame.pack(fill="x", padx=20, pady=(0, 5))
 
         ctk.CTkLabel(search_frame, text="Name:", font=("Inter", 11), text_color="gray").pack(side="left")
-        search_name = ctk.CTkEntry(search_frame, placeholder_text="Item name...", width=180)
+        search_name = ctk.CTkEntry(search_frame, placeholder_text="Item name...", width=180, takefocus=True)
         search_name.pack(side="left", padx=(5, 10))
 
         ctk.CTkLabel(search_frame, text="PID:", font=("Inter", 11), text_color="gray").pack(side="left")
-        search_pid = ctk.CTkEntry(search_frame, placeholder_text="Product ID...", width=100)
+        search_pid = ctk.CTkEntry(search_frame, placeholder_text="Product ID...", width=100, takefocus=True)
         search_pid.pack(side="left", padx=(5, 10))
 
         def do_search():
@@ -211,7 +216,7 @@ class ProjectsView(ctk.CTkFrame):
                          text_color="white").grid(row=0, column=col, padx=5, pady=5, sticky="w")
 
         list_scroll = ctk.CTkScrollableFrame(modal, fg_color="transparent")
-        list_scroll.pack(fill="both", expand=True, padx=20, pady=(5, 20))
+        list_scroll.pack(fill="both", expand=True, padx=20, pady=(5, 10))
 
         def load_catalog(name_q="", pid_q=""):
             for w in list_scroll.winfo_children():
@@ -271,7 +276,7 @@ class ProjectsView(ctk.CTkFrame):
                                  font=("Inter", 11, "bold"), text_color=stock_color).grid(
                         row=0, column=4, padx=5, pady=8, sticky="w")
 
-                    qty_entry = ctk.CTkEntry(rf, width=55, height=26)
+                    qty_entry = ctk.CTkEntry(rf, width=55, height=26, takefocus=True)
                     qty_entry.grid(row=0, column=5, padx=5, pady=8, sticky="w")
 
                     ctk.CTkButton(rf, text="+ Add", width=55, height=26,
@@ -290,6 +295,10 @@ class ProjectsView(ctk.CTkFrame):
                     conn.close()
 
         load_catalog()
+        
+        # FIX: Added a "Done" button to close the modal easily
+        ctk.CTkButton(modal, text="Done / Close Catalog", height=35, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=modal.destroy).pack(pady=(5, 15))
+
 
     def add_from_catalog(self, row_data, qty_entry, modal):
         try:
@@ -325,6 +334,8 @@ class ProjectsView(ctk.CTkFrame):
                 item['needs_retrieval'] = item['needs_retrieval'] or needs_retrieval
                 self.refresh_req_cart()
                 qty_entry.delete(0, 'end')
+                # FIX: Added confirmation messagebox
+                messagebox.showinfo("Updated", f"Updated {row_data['name']} quantity to {item['qty']:g} {row_data['uom']}.", parent=modal)
                 return
 
         self.req_cart.append({
@@ -336,6 +347,9 @@ class ProjectsView(ctk.CTkFrame):
         })
         self.refresh_req_cart()
         qty_entry.delete(0, 'end')
+        
+        # FIX: Added confirmation messagebox
+        messagebox.showinfo("Added", f"Successfully added {req_qty:g} {row_data['uom']} of {row_data['name']} to project requirements.", parent=modal)
 
     def refresh_req_cart(self):
         for w in self.cart_scroll.winfo_children():
@@ -394,6 +408,9 @@ class ProjectsView(ctk.CTkFrame):
         client = self.p_client.get().strip()
         project_head = self.p_head.get().strip()
         workers_str = ", ".join(self.workers_list) if self.workers_list else ""
+        
+        # FIX: Extracting text properly from the CTkTextbox widget
+        desc_text = self.p_desc.get("1.0", "end-1c").strip()
 
         if not name or not client:
             messagebox.showerror("Error", "Project Name and Client are required.",
@@ -413,7 +430,7 @@ class ProjectsView(ctk.CTkFrame):
                 INSERT INTO projects (name, description, project_head, client, location,
                                       workers_assigned, start_date, end_date, manager_id, status)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Pending')
-            """, (name, self.p_desc.get(), project_head, client,
+            """, (name, desc_text, project_head, client,
                   self.p_location.get(), workers_str,
                   self.p_start.get(), self.p_end.get(),
                   self.user_info['user_id']))
@@ -439,7 +456,8 @@ class ProjectsView(ctk.CTkFrame):
                                 parent=self.winfo_toplevel())
 
             self.p_name.delete(0, 'end')
-            self.p_desc.delete(0, 'end')
+            # FIX: Clearing the Textbox correctly
+            self.p_desc.delete("1.0", "end")
             self.p_head.delete(0, 'end')
             self.p_client.delete(0, 'end')
             self.p_location.delete(0, 'end')

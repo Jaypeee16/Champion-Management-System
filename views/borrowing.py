@@ -7,8 +7,8 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
 
-class BorrowingView(ctk.CTkFrame): # Changed from ScrollableFrame to standard Frame
-    def __init__(self, parent):
+class BorrowingView(ctk.CTkScrollableFrame): 
+    def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, fg_color="transparent")
         
         self.grid_columnconfigure(0, weight=1) 

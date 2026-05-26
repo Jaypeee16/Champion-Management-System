@@ -12,13 +12,14 @@ class InventoryView(ctk.CTkFrame):
         self.scroll_wrapper = ctk.CTkScrollableFrame(self, fg_color="transparent", orientation="horizontal")
         self.scroll_wrapper.pack(fill="both", expand=True)
 
-        self.categories = ["Select category", "Tools", "Measuring", "Power Tools", "Consumables", "+ Add New Category"]
-        self.suppliers = ["Select supplier", "ACME", "Priya", "Global Tooling", "+ Add New Supplier"]
         self.tool_hash_table = {}
 
         self.build_left_form()
         self.build_right_table()
         self.load_inventory_data()
+        
+        # Load the categories and suppliers from the database on startup
+        self.load_dynamic_dropdowns() 
 
     def build_left_form(self):
         form_frame = ctk.CTkScrollableFrame(self.scroll_wrapper, fg_color="white", corner_radius=10, width=320)
@@ -34,23 +35,19 @@ class InventoryView(ctk.CTkFrame):
         t_frame = ctk.CTkFrame(row_type, fg_color="transparent")
         t_frame.grid(row=0, column=0, sticky="ew", padx=(0, 5))
         ctk.CTkLabel(t_frame, text="Item Type", font=("Inter", 12, "bold"), text_color="#1E4528").pack(anchor="w")
-        self.type_menu = ctk.CTkOptionMenu(t_frame, values=["Equipment", "Consumable"],
-                                           fg_color="#E8F8F5", text_color="black")
+        self.type_menu = ctk.CTkOptionMenu(t_frame, values=["Equipment", "Consumable"], fg_color="#E8F8F5", text_color="black")
         self.type_menu.pack(fill="x", pady=(5, 0))
 
         uom_frame = ctk.CTkFrame(row_type, fg_color="transparent")
         uom_frame.grid(row=0, column=1, sticky="ew", padx=(5, 0))
         ctk.CTkLabel(uom_frame, text="Unit (UoM)", font=("Inter", 12, "bold"), text_color="#1E4528").pack(anchor="w")
-        self.uom_menu = ctk.CTkOptionMenu(uom_frame, values=["pcs", "boxes", "sets", "kg", "rolls", "packs", "liters"],
-                                          fg_color="#E8F8F5", text_color="black")
+        self.uom_menu = ctk.CTkOptionMenu(uom_frame, values=["pcs", "boxes", "sets", "kg", "rolls", "packs", "liters"], fg_color="#E8F8F5", text_color="black")
         self.uom_menu.pack(fill="x", pady=(5, 0))
 
         # Consumable note
         ctk.CTkLabel(form_frame,
-                     text="💡 Consumables (e.g. boxes of nails) support fractional returns.\n"
-                          "   e.g., return 0.5 if half a box was used.",
-                     font=("Inter", 10), text_color="#888888",
-                     justify="left", wraplength=270).pack(anchor="w", padx=20, pady=(5, 5))
+                     text="💡 Consumables (e.g. boxes of nails) support fractional returns.\n   e.g., return 0.5 if half a box was used.",
+                     font=("Inter", 10), text_color="#888888", justify="left", wraplength=270).pack(anchor="w", padx=20, pady=(5, 5))
 
         ctk.CTkLabel(form_frame, text="Product Name *", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
         self.name_entry = ctk.CTkEntry(form_frame, placeholder_text="e.g., #2 Nails (Box)")
@@ -61,11 +58,11 @@ class InventoryView(ctk.CTkFrame):
         self.desc_entry.pack(fill="x", padx=20, pady=(5, 10))
 
         ctk.CTkLabel(form_frame, text="Category", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
-        self.cat_menu = ctk.CTkOptionMenu(form_frame, values=self.categories, fg_color="#F9FAFB", text_color="black")
+        self.cat_menu = ctk.CTkComboBox(form_frame, values=["Loading..."], fg_color="#F9FAFB", text_color="black")
         self.cat_menu.pack(fill="x", padx=20, pady=(5, 10))
 
         ctk.CTkLabel(form_frame, text="Supplier", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
-        self.sup_menu = ctk.CTkOptionMenu(form_frame, values=self.suppliers, fg_color="#F9FAFB", text_color="black")
+        self.sup_menu = ctk.CTkComboBox(form_frame, values=["Loading..."], fg_color="#F9FAFB", text_color="black")
         self.sup_menu.pack(fill="x", padx=20, pady=(5, 10))
 
         row_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
@@ -93,12 +90,33 @@ class InventoryView(ctk.CTkFrame):
         btn_row.pack(fill="x", padx=20, pady=(10, 20))
         btn_row.grid_columnconfigure((0, 1), weight=1)
 
-        ctk.CTkButton(btn_row, text="Save Item", fg_color="#1E4528", hover_color="#14301C",
-                      font=("Inter", 12, "bold"),
-                      command=self.validate_and_save).grid(row=0, column=0, padx=(0, 5), sticky="ew")
-        ctk.CTkButton(btn_row, text="Clear", fg_color="white", text_color="black",
-                      border_width=1, border_color="#E0E0E0", hover_color="#F0F0F0",
-                      command=self.clear_form).grid(row=0, column=1, padx=(5, 0), sticky="ew")
+        ctk.CTkButton(btn_row, text="Save Item", fg_color="#1E4528", hover_color="#14301C", font=("Inter", 12, "bold"), command=self.validate_and_save).grid(row=0, column=0, padx=(0, 5), sticky="ew")
+        ctk.CTkButton(btn_row, text="Clear", fg_color="white", text_color="black", border_width=1, border_color="#E0E0E0", hover_color="#F0F0F0", command=self.clear_form).grid(row=0, column=1, padx=(5, 0), sticky="ew")
+
+    def load_dynamic_dropdowns(self):
+        conn = get_connection()
+        if not conn: return
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT DISTINCT category FROM tool WHERE category IS NOT NULL AND category != 'Uncategorized' AND category != ''")
+            cats = [row[0] for row in cursor.fetchall()]
+            
+            cursor.execute("SELECT DISTINCT supplier FROM tool WHERE supplier IS NOT NULL AND supplier != 'N/A' AND supplier != ''")
+            sups = [row[0] for row in cursor.fetchall()]
+            
+            if not cats: cats = ["Tools", "Measuring", "Power Tools", "Consumables"]
+            if not sups: sups = ["ACME", "Global Tooling"]
+            
+            self.cat_menu.configure(values=cats)
+            self.sup_menu.configure(values=sups)
+            
+            self.cat_menu.set("Type or select...")
+            self.sup_menu.set("Type or select...")
+            
+        except Exception as e:
+            print(f"Dropdown Load Error: {e}")
+        finally:
+            if conn.is_connected(): cursor.close(); conn.close()
 
     def build_right_table(self):
         table_frame = ctk.CTkFrame(self.scroll_wrapper, fg_color="white", corner_radius=10, width=900)
@@ -107,24 +125,17 @@ class InventoryView(ctk.CTkFrame):
         search_frame = ctk.CTkFrame(table_frame, fg_color="transparent")
         search_frame.pack(fill="x", padx=20, pady=20)
 
-        self.filter_menu = ctk.CTkOptionMenu(search_frame,
-                                             values=["All Fields", "By: PID", "By: Name", "By: Type", "By: Supplier"],
-                                             width=150, fg_color="#F9FAFB", text_color="black")
+        self.filter_menu = ctk.CTkOptionMenu(search_frame, values=["All Fields", "By: PID", "By: Name", "By: Type", "By: Supplier"], width=150, fg_color="#F9FAFB", text_color="black")
         self.filter_menu.pack(side="left", padx=(0, 10))
 
-        self.search_entry = ctk.CTkEntry(search_frame, placeholder_text="Search inventory...", width=250,
-                                         )
+        self.search_entry = ctk.CTkEntry(search_frame, placeholder_text="Search inventory...", width=250)
         self.search_entry.pack(side="left")
         self.search_entry.bind("<Return>", lambda e: self.perform_search())
 
-        self.search_btn = ctk.CTkButton(search_frame, text="Search", width=80, fg_color="#F1C40F",
-                                        text_color="black", hover_color="#D4AC0D",
-                                        command=self.perform_search)
+        self.search_btn = ctk.CTkButton(search_frame, text="Search", width=80, fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", command=self.perform_search)
         self.search_btn.pack(side="left", padx=10)
 
-        self.reset_btn = ctk.CTkButton(search_frame, text="↻ Reset", width=70, fg_color="#E0E0E0",
-                                       text_color="black", hover_color="#CCCCCC",
-                                       command=self.reset_search)
+        self.reset_btn = ctk.CTkButton(search_frame, text="↻ Reset", width=70, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=self.reset_search)
         self.reset_btn.pack(side="left", padx=(0, 0))
 
         header_frame = ctk.CTkFrame(table_frame, fg_color="#1E4528", corner_radius=5, height=40)
@@ -136,8 +147,7 @@ class InventoryView(ctk.CTkFrame):
 
         for col, (text, weight) in enumerate(zip(self.headers, self.weights)):
             header_frame.grid_columnconfigure(col, weight=weight)
-            ctk.CTkLabel(header_frame, text=text, font=("Inter", 11, "bold"),
-                         text_color="white").grid(row=0, column=col, padx=10, pady=10, sticky="w")
+            ctk.CTkLabel(header_frame, text=text, font=("Inter", 11, "bold"), text_color="white").grid(row=0, column=col, padx=10, pady=10, sticky="w")
 
         self.data_scroll = ctk.CTkScrollableFrame(table_frame, fg_color="transparent")
         self.data_scroll.pack(fill="both", expand=True, padx=20, pady=(10, 20))
@@ -153,15 +163,20 @@ class InventoryView(ctk.CTkFrame):
 
         try:
             cursor = conn.cursor(dictionary=True)
+            # BAGONG SQL: May subquery na naghahanap ng active project!
             base_query = """
                 SELECT t.tool_id, IFNULL(t.item_type, 'Equipment') as item_type,
                        IFNULL(t.unit_of_measure, 'pcs') as uom,
                        t.name, IFNULL(t.description, '') as description, t.price,
                        IFNULL(i.quantity_available, 0) as qty_avail,
                        IFNULL(i.quantity_total, 0) as qty_tot,
-                       IFNULL(t.location, 'N/A') as location, t.`condition` as status,
+                       IFNULL(t.location, 'N/A') as base_location, t.`condition` as status,
                        IFNULL(t.category, 'Uncategorized') as category,
-                       IFNULL(t.supplier, 'N/A') as supplier
+                       IFNULL(t.supplier, 'N/A') as supplier,
+                       (SELECT p.name FROM transaction tr 
+                        JOIN projects p ON tr.project_id = p.project_id 
+                        WHERE tr.tool_id = t.tool_id AND tr.status = 'Active' 
+                        LIMIT 1) as active_project
                 FROM tool t LEFT JOIN inventory i ON t.tool_id = i.tool_id
                 WHERE t.is_archived = 0
             """
@@ -189,35 +204,44 @@ class InventoryView(ctk.CTkFrame):
 
             for i, row in enumerate(results):
                 pid = str(row['tool_id'])
+                row['location'] = row['base_location'] 
                 self.tool_hash_table[pid] = row
 
                 avail = f"{row['qty_avail']:g}" if row['qty_avail'] else "0"
                 tot = f"{row['qty_tot']:g}" if row['qty_tot'] else "0"
+                
+                # BAGONG LOGIC: Kapag nabawasan ang avail stocks at may project, magiging "Deployed"
+                display_loc = row['base_location']
+                if row.get('active_project') and float(row['qty_avail']) < float(row['qty_tot']):
+                    display_loc = f"Deployed: {row['active_project']}"
+
                 display_data = [
                     pid, row['item_type'], row['name'], row['category'],
                     row['supplier'], f"{avail}/{tot}", row['uom'],
-                    row['location'], row['status']
+                    display_loc, row['status']
                 ]
 
-                row_frame = ctk.CTkFrame(self.data_scroll,
-                                         fg_color="#F9FAFB" if i % 2 == 0 else "white", height=40)
+                row_frame = ctk.CTkFrame(self.data_scroll, fg_color="#F9FAFB" if i % 2 == 0 else "white", height=40)
                 row_frame.pack(fill="x", pady=2)
                 row_frame.pack_propagate(False)
                 row_frame.bind("<Button-1>", lambda e, lookup_id=pid: self.open_tool_modal(lookup_id))
 
                 for col, (text, weight) in enumerate(zip(display_data, self.weights)):
                     row_frame.grid_columnconfigure(col, weight=weight)
-                    txt_col = "#D35400" if col == 1 and text == "Consumable" else "#1A1A1A"
-                    lbl = ctk.CTkLabel(row_frame, text=text,
-                                       font=("Inter", 11, "bold" if col == 1 else "normal"),
-                                       text_color=txt_col)
+                    
+                    # BAGONG COLOR: Blue text kapag Deployed
+                    if col == 7 and "Deployed:" in str(text):
+                        txt_col = "#2980B9"
+                    else:
+                        txt_col = "#D35400" if col == 1 and text == "Consumable" else "#1A1A1A"
+                        
+                    lbl = ctk.CTkLabel(row_frame, text=text, font=("Inter", 11, "bold" if col == 1 or (col == 7 and "Deployed:" in str(text)) else "normal"), text_color=txt_col)
                     lbl.grid(row=0, column=col, padx=10, pady=10, sticky="w")
                     lbl.bind("<Button-1>", lambda e, lookup_id=pid: self.open_tool_modal(lookup_id))
 
             uid = self.user_info.get("user_id")
             if uid and query:
-                log_action(uid, "Searched", "Inventory",
-                           f"Searched inventory: '{query}' by {filter_type}")
+                log_action(uid, "Searched", "Inventory", f"Searched inventory: '{query}' by {filter_type}")
 
         finally:
             if conn.is_connected():
@@ -273,12 +297,14 @@ class InventoryView(ctk.CTkFrame):
 
             uid = self.user_info.get("user_id")
             if uid:
-                log_action(uid, "Added", "Inventory",
-                           f"Added new {itype}: '{name}' (PID: {new_tool_id}), Qty: {qty} {uom}")
+                log_action(uid, "Added", "Inventory", f"Added new {itype}: '{name}' (PID: {new_tool_id}), Qty: {qty} {uom}")
 
             messagebox.showinfo("Success", f"{itype} '{name}' added successfully.", parent=self.winfo_toplevel())
             self.clear_form()
             self.load_inventory_data()
+            
+            # Refresh dropdowns so the newly typed supplier/category shows up!
+            self.load_dynamic_dropdowns() 
         except Exception as e:
             messagebox.showerror("Database Error", str(e), parent=self.winfo_toplevel())
         finally:
@@ -303,10 +329,8 @@ class InventoryView(ctk.CTkFrame):
         modal.geometry(f"+{x}+{y}")
         modal.grab_set()
 
-        ctk.CTkLabel(modal, text=f"Item Details — PID: {lookup_id}",
-                     font=("Inter", 16, "bold"), text_color="black").pack(pady=(20, 3))
-        ctk.CTkLabel(modal, text=f"{data['name']}",
-                     font=("Inter", 13), text_color="#555555").pack(pady=(0, 10))
+        ctk.CTkLabel(modal, text=f"Item Details — PID: {lookup_id}", font=("Inter", 16, "bold"), text_color="black").pack(pady=(20, 3))
+        ctk.CTkLabel(modal, text=f"{data['name']}", font=("Inter", 13), text_color="#555555").pack(pady=(0, 10))
 
         form_scroll = ctk.CTkScrollableFrame(modal, fg_color="transparent")
         form_scroll.pack(fill="both", expand=True, padx=25)
@@ -314,60 +338,40 @@ class InventoryView(ctk.CTkFrame):
         def create_modal_row(parent, label, value):
             frame = ctk.CTkFrame(parent, fg_color="transparent")
             frame.pack(fill="x", pady=4)
-            ctk.CTkLabel(frame, text=label, width=90, anchor="w",
-                         font=("Inter", 11, "bold"), text_color="gray").pack(side="left")
+            ctk.CTkLabel(frame, text=label, width=90, anchor="w", font=("Inter", 11, "bold"), text_color="gray").pack(side="left")
             entry = ctk.CTkEntry(frame)
             entry.pack(side="left", fill="x", expand=True)
             entry.insert(0, str(value) if value else "")
             return entry
 
-        # EDITABLE Item Type (dropdown)
         type_frame = ctk.CTkFrame(form_scroll, fg_color="transparent")
         type_frame.pack(fill="x", pady=4)
-        ctk.CTkLabel(type_frame, text="Item Type", width=90, anchor="w",
-                     font=("Inter", 11, "bold"), text_color="gray").pack(side="left")
-        type_menu = ctk.CTkOptionMenu(type_frame, values=["Equipment", "Consumable"],
-                                      fg_color="#F9FAFB", text_color="black")
+        ctk.CTkLabel(type_frame, text="Item Type", width=90, anchor="w", font=("Inter", 11, "bold"), text_color="gray").pack(side="left")
+        type_menu = ctk.CTkOptionMenu(type_frame, values=["Equipment", "Consumable"], fg_color="#F9FAFB", text_color="black")
         type_menu.pack(side="left", fill="x", expand=True)
         type_menu.set(data['item_type'])
 
         name_entry = create_modal_row(form_scroll, "Name", data['name'])
         desc_entry = create_modal_row(form_scroll, "Description", data['description'])
         cat_entry = create_modal_row(form_scroll, "Category", data['category'])
-
-        # EDITABLE Supplier (text entry so any value works)
         sup_entry = create_modal_row(form_scroll, "Supplier", data['supplier'])
-
         qty_entry = create_modal_row(form_scroll, "Total Qty", f"{data['qty_tot']:g}")
 
-        # EDITABLE UoM (dropdown)
         uom_frame = ctk.CTkFrame(form_scroll, fg_color="transparent")
         uom_frame.pack(fill="x", pady=4)
-        ctk.CTkLabel(uom_frame, text="UoM", width=90, anchor="w",
-                     font=("Inter", 11, "bold"), text_color="gray").pack(side="left")
-        uom_menu = ctk.CTkOptionMenu(uom_frame,
-                                     values=["pcs", "boxes", "sets", "kg", "rolls", "packs", "liters"],
-                                     fg_color="#F9FAFB", text_color="black")
+        ctk.CTkLabel(uom_frame, text="UoM", width=90, anchor="w", font=("Inter", 11, "bold"), text_color="gray").pack(side="left")
+        uom_menu = ctk.CTkOptionMenu(uom_frame, values=["pcs", "boxes", "sets", "kg", "rolls", "packs", "liters"], fg_color="#F9FAFB", text_color="black")
         uom_menu.pack(side="left", fill="x", expand=True)
         uom_menu.set(data['uom'])
 
         loc_entry = create_modal_row(form_scroll, "Location", data['location'])
 
-        # Consumable fractional return note
-        ctk.CTkLabel(form_scroll,
-                     text="ℹ  For consumables (boxes, kg, sets): fractional quantities are supported.\n"
-                          "   e.g., set Total Qty to 2.5 if half a box was partially used.",
-                     font=("Inter", 10), text_color="#888888",
-                     justify="left", wraplength=380).pack(anchor="w", pady=(3, 5))
+        ctk.CTkLabel(form_scroll, text="ℹ  For consumables (boxes, kg, sets): fractional quantities are supported.\n   e.g., set Total Qty to 2.5 if half a box was partially used.", font=("Inter", 10), text_color="#888888", justify="left", wraplength=380).pack(anchor="w", pady=(3, 5))
 
-        # EDITABLE Condition (dropdown)
         status_frame = ctk.CTkFrame(form_scroll, fg_color="transparent")
         status_frame.pack(fill="x", pady=4)
-        ctk.CTkLabel(status_frame, text="Condition", width=90, anchor="w",
-                     font=("Inter", 11, "bold"), text_color="gray").pack(side="left")
-        status_menu = ctk.CTkOptionMenu(status_frame,
-                                        values=["Good", "Needs Repair", "Damaged", "Lost"],
-                                        fg_color="#F9FAFB", text_color="black")
+        ctk.CTkLabel(status_frame, text="Condition", width=90, anchor="w", font=("Inter", 11, "bold"), text_color="gray").pack(side="left")
+        status_menu = ctk.CTkOptionMenu(status_frame, values=["Good", "Needs Repair", "Damaged", "Lost"], fg_color="#F9FAFB", text_color="black")
         status_menu.pack(side="left", fill="x", expand=True)
         status_menu.set(data['status'])
 
@@ -401,13 +405,11 @@ class InventoryView(ctk.CTkFrame):
 
                     uid = self.user_info.get("user_id")
                     if uid:
-                        log_action(uid, "Edited", "Inventory",
-                                   f"Edited item '{name_entry.get()}' (PID: {lookup_id}) — "
-                                   f"Type: {type_menu.get()}, Supplier: {sup_entry.get()}, "
-                                   f"Condition: {status_menu.get()}, Qty: {new_qty}")
+                        log_action(uid, "Edited", "Inventory", f"Edited item '{name_entry.get()}' (PID: {lookup_id}) — Type: {type_menu.get()}, Supplier: {sup_entry.get()}, Condition: {status_menu.get()}, Qty: {new_qty}")
 
                     modal.destroy()
                     self.load_inventory_data()
+                    self.load_dynamic_dropdowns() 
                 except Exception as e:
                     messagebox.showerror("Database Error", str(e), parent=modal)
                 finally:
@@ -416,39 +418,33 @@ class InventoryView(ctk.CTkFrame):
                         conn.close()
 
         def execute_archive():
-            if messagebox.askyesno("Confirm", "Archive this item? It will be hidden from active inventory.",
-                                   parent=modal):
+            if messagebox.askyesno("Confirm", "Archive this item? It will be hidden from active inventory.", parent=modal):
                 conn = get_connection()
                 if conn:
                     cursor = conn.cursor()
-                    cursor.execute("UPDATE tool SET is_archived=1, archived_at=NOW() WHERE tool_id=%s",
-                                   (lookup_id,))
+                    cursor.execute("UPDATE tool SET is_archived=1, archived_at=NOW() WHERE tool_id=%s", (lookup_id,))
                     conn.commit()
                     cursor.close()
                     conn.close()
 
                     uid = self.user_info.get("user_id")
                     if uid:
-                        log_action(uid, "Archived", "Inventory",
-                                   f"Archived item '{data['name']}' (PID: {lookup_id})")
+                        log_action(uid, "Archived", "Inventory", f"Archived item '{data['name']}' (PID: {lookup_id})")
 
                     modal.destroy()
                     self.load_inventory_data()
 
         btn_row = ctk.CTkFrame(modal, fg_color="transparent")
         btn_row.pack(side="bottom", fill="x", padx=25, pady=15)
-        ctk.CTkButton(btn_row, text="Update", fg_color="#F1C40F", text_color="black",
-                      hover_color="#D4AC0D", command=execute_update).pack(side="left", padx=5)
-        ctk.CTkButton(btn_row, text="Archive", fg_color="#D3B8A7", text_color="black",
-                      hover_color="#BFA595", command=execute_archive).pack(side="left", padx=5)
-        ctk.CTkButton(btn_row, text="Close", fg_color="#E0E0E0", text_color="black",
-                      hover_color="#CCCCCC", command=modal.destroy).pack(side="right", padx=5)
+        ctk.CTkButton(btn_row, text="Update", fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", command=execute_update).pack(side="left", padx=5)
+        ctk.CTkButton(btn_row, text="Archive", fg_color="#D3B8A7", text_color="black", hover_color="#BFA595", command=execute_archive).pack(side="left", padx=5)
+        ctk.CTkButton(btn_row, text="Close", fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=modal.destroy).pack(side="right", padx=5)
 
     def clear_form(self):
         self.type_menu.set("Equipment")
         self.uom_menu.set("pcs")
-        self.cat_menu.set("Select category")
-        self.sup_menu.set("Select supplier")
+        self.cat_menu.set("Type or select...")
+        self.sup_menu.set("Type or select...")
         self.name_entry.delete(0, 'end')
         self.desc_entry.delete(0, 'end')
         self.price_entry.delete(0, 'end')
