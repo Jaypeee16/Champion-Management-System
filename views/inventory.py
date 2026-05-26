@@ -41,7 +41,7 @@ class InventoryView(ctk.CTkFrame):
         uom_frame = ctk.CTkFrame(row_type, fg_color="transparent")
         uom_frame.grid(row=0, column=1, sticky="ew", padx=(5, 0))
         ctk.CTkLabel(uom_frame, text="Unit (UoM)", font=("Inter", 12, "bold"), text_color="#1E4528").pack(anchor="w")
-        self.uom_menu = ctk.CTkOptionMenu(uom_frame, values=["pcs", "boxes", "sets", "kg", "rolls", "packs", "liters"], fg_color="#E8F8F5", text_color="black")
+        self.uom_menu = ctk.CTkOptionMenu(uom_frame, values=["pcs", "boxes", "sets", "kg", "rolls", "packs", "liters", "meters", "feet"], fg_color="#E8F8F5", text_color="black")
         self.uom_menu.pack(fill="x", pady=(5, 0))
 
         # Consumable note
@@ -360,7 +360,7 @@ class InventoryView(ctk.CTkFrame):
         uom_frame = ctk.CTkFrame(form_scroll, fg_color="transparent")
         uom_frame.pack(fill="x", pady=4)
         ctk.CTkLabel(uom_frame, text="UoM", width=90, anchor="w", font=("Inter", 11, "bold"), text_color="gray").pack(side="left")
-        uom_menu = ctk.CTkOptionMenu(uom_frame, values=["pcs", "boxes", "sets", "kg", "rolls", "packs", "liters"], fg_color="#F9FAFB", text_color="black")
+        uom_menu = ctk.CTkOptionMenu(uom_frame, values=["pcs", "boxes", "sets", "kg", "rolls", "packs", "liters", "meters", "feet"], fg_color="#F9FAFB", text_color="black")
         uom_menu.pack(side="left", fill="x", expand=True)
         uom_menu.set(data['uom'])
 

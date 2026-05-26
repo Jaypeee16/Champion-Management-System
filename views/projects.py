@@ -408,71 +408,78 @@ class ProjectsView(ctk.CTkFrame):
         client = self.p_client.get().strip()
         project_head = self.p_head.get().strip()
         workers_str = ", ".join(self.workers_list) if self.workers_list else ""
-        
-        # FIX: Extracting text properly from the CTkTextbox widget
         desc_text = self.p_desc.get("1.0", "end-1c").strip()
 
         if not name or not client:
-            messagebox.showerror("Error", "Project Name and Client are required.",
-                                 parent=self.winfo_toplevel())
+            messagebox.showerror("Error", "Project Name and Client are required.", parent=self.winfo_toplevel())
             return
         if not self.req_cart:
-            messagebox.showerror("Error", "Please add at least one tool requirement.",
-                                 parent=self.winfo_toplevel())
+            messagebox.showerror("Error", "Please add at least one tool requirement.", parent=self.winfo_toplevel())
             return
 
         conn = get_connection()
-        if not conn:
-            return
+        if not conn: return
         try:
             cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO projects (name, description, project_head, client, location,
-                                      workers_assigned, start_date, end_date, manager_id, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Pending')
-            """, (name, desc_text, project_head, client,
-                  self.p_location.get(), workers_str,
-                  self.p_start.get(), self.p_end.get(),
-                  self.user_info['user_id']))
-
-            project_id = cursor.lastrowid
+            
+            # --- THE FIX: Check if we are doing a Change Order (Editing) ---
+            editing_id = getattr(self, "editing_project_id", None)
+            
+            if editing_id:
+                old_status = getattr(self, "editing_project_status", "Pending")
+                new_status = old_status.replace(' (OVERDUE)', '')
+                
+                # Rule: If staff edits an approved project, it drops back to Pending.
+                if 'Approved' in old_status and not self.is_admin:
+                    new_status = 'Pending'
+                    messagebox.showwarning("Notice", "Modifying an approved project reverts it to Pending status for Admin review.", parent=self.winfo_toplevel())
+                
+                cursor.execute('''
+                    UPDATE projects 
+                    SET name=%s, description=%s, project_head=%s, client=%s, location=%s, workers_assigned=%s, start_date=%s, end_date=%s, status=%s
+                    WHERE project_id=%s
+                ''', (name, desc_text, project_head, client, self.p_location.get(), workers_str, self.p_start.get(), self.p_end.get(), new_status, editing_id))
+                
+                cursor.execute("DELETE FROM project_requirements WHERE project_id=%s", (editing_id,)) # Wipe old tools
+                project_id = editing_id
+                action_text = "Updated"
+            else:
+                cursor.execute('''
+                    INSERT INTO projects (name, description, project_head, client, location, workers_assigned, start_date, end_date, manager_id, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Pending')
+                ''', (name, desc_text, project_head, client, self.p_location.get(), workers_str, self.p_start.get(), self.p_end.get(), self.user_info['user_id']))
+                project_id = cursor.lastrowid
+                action_text = "Submitted"
 
             for item in self.req_cart:
                 req_status = 'Warning' if item.get('needs_retrieval') else 'Clear'
-                cursor.execute("""
+                cursor.execute('''
                     INSERT INTO project_requirements (project_id, tool_id, quantity, status)
                     VALUES (%s, %s, %s, %s)
-                """, (project_id, item['tool_id'], item['qty'], req_status))
+                ''', (project_id, item['tool_id'], item['qty'], req_status))
 
             conn.commit()
 
-            uid = self.user_info.get("user_id")
-            if uid:
-                log_action(uid, "Submitted", "Projects",
-                           f"Submitted project '{name}' (ID: {project_id}) for client '{client}'. "
-                           f"{len(self.req_cart)} tool requirement(s). Head: {project_head}.")
+            if self.user_info.get("user_id"):
+                log_action(self.user_info['user_id'], action_text, "Projects", f"{action_text} project '{name}' (ID: {project_id}).")
 
-            messagebox.showinfo("Success", "Project submitted! Waiting for Admin Approval.",
-                                parent=self.winfo_toplevel())
+            messagebox.showinfo("Success", f"Project successfully {action_text.lower()}!", parent=self.winfo_toplevel())
 
-            self.p_name.delete(0, 'end')
-            # FIX: Clearing the Textbox correctly
-            self.p_desc.delete("1.0", "end")
-            self.p_head.delete(0, 'end')
-            self.p_client.delete(0, 'end')
-            self.p_location.delete(0, 'end')
-            self.workers_list.clear()
-            self._refresh_worker_tags()
-            self.req_cart.clear()
+            self.p_name.delete(0, 'end'); self.p_desc.delete("1.0", "end")
+            self.p_head.delete(0, 'end'); self.p_client.delete(0, 'end')
+            self.p_location.delete(0, 'end'); self.workers_list.clear()
+            self._refresh_worker_tags(); self.req_cart.clear()
             self.refresh_req_cart()
+            
+            # Clear edit state
+            self.editing_project_id = None
+            self.editing_project_status = None
             self.load_projects()
 
         except Exception as e:
             messagebox.showerror("DB Error", str(e), parent=self.winfo_toplevel())
         finally:
-            if conn.is_connected():
-                cursor.close()
-                conn.close()
+            if conn.is_connected(): cursor.close(); conn.close()
 
     def build_table_panel(self):
         table_card = ctk.CTkFrame(self.inner, fg_color="white", corner_radius=10)
@@ -484,6 +491,14 @@ class ProjectsView(ctk.CTkFrame):
         top.pack(fill="x", padx=20, pady=(20, 10))
         ctk.CTkLabel(top, text="Project Deployment Plans",
                      font=("Inter", 16, "bold"), text_color="#1A1A1A").pack(side="left")
+
+        # --- ADDED SEARCH BAR ---
+        self.proj_search = ctk.CTkEntry(top, placeholder_text="Search project or client...", width=200, takefocus=True)
+        self.proj_search.pack(side="right", padx=(5, 0))
+        self.proj_search.bind("<Return>", lambda e: self.load_projects(self.proj_search.get().strip()))
+        
+        ctk.CTkButton(top, text="Search", width=70, fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", font=("Inter", 11, "bold"), command=lambda: self.load_projects(self.proj_search.get().strip())).pack(side="right", padx=5)
+        ctk.CTkButton(top, text="↻ Reset", width=70, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=lambda: [self.proj_search.delete(0, "end"), self.load_projects()]).pack(side="right")
 
         hdr = ctk.CTkFrame(table_card, fg_color="#1E4528", corner_radius=5, height=38)
         hdr.pack(fill="x", padx=(20, 36))
@@ -501,7 +516,7 @@ class ProjectsView(ctk.CTkFrame):
         self.project_scroll.pack(fill="both", expand=True, padx=20, pady=(5, 20))
         self.load_projects()
 
-    def load_projects(self):
+    def load_projects(self, search_q=""):
         for w in self.project_scroll.winfo_children():
             w.destroy()
         conn = get_connection()
@@ -509,13 +524,27 @@ class ProjectsView(ctk.CTkFrame):
             return
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("""
-                SELECT p.*, a.full_name as admin_approver
+            
+            sql = '''
+                SELECT p.*, a.full_name as admin_approver,
+                       CASE 
+                           WHEN p.status IN ('Approved', 'Ongoing') AND p.end_date < CURDATE() THEN CONCAT(p.status, ' (OVERDUE)')
+                           ELSE p.status 
+                       END as display_status
                 FROM projects p
                 LEFT JOIN user a ON p.approved_by = a.user_id
-                ORDER BY p.project_id DESC
-            """)
+            '''
+            params = []
+            if search_q:
+                sql += " WHERE p.name LIKE %s OR p.client LIKE %s OR p.project_head LIKE %s"
+                params = [f"%{search_q}%", f"%{search_q}%", f"%{search_q}%"]
+                
+            sql += " ORDER BY p.project_id DESC"
+            cursor.execute(sql, tuple(params))
+            
             for i, row in enumerate(cursor.fetchall()):
+                # Override the dictionary status so the rest of your UI picks up the OVERDUE text
+                row["status"] = row["display_status"]
                 rf = ctk.CTkFrame(self.project_scroll,
                                   fg_color="#F9FAFB" if i % 2 == 0 else "white", height=45)
                 rf.pack(fill="x", pady=2)
@@ -593,8 +622,7 @@ class ProjectsView(ctk.CTkFrame):
         ctk.CTkFrame(details_frame, height=8, fg_color="transparent").pack()
 
         # Tools Requisition
-        ctk.CTkLabel(scroll, text="Tools & Equipment Requisition",
-                     font=("Inter", 12, "bold"), text_color="#1E4528").pack(anchor="w", pady=(8, 3))
+        ctk.CTkLabel(scroll, text="Tools & Equipment Requisition", font=("Inter", 12, "bold"), text_color="#1E4528").pack(anchor="w", pady=(8, 3))
         tools_scroll = ctk.CTkScrollableFrame(scroll, fg_color="white", corner_radius=8, height=160)
         tools_scroll.pack(fill="x", pady=(0, 10))
 
@@ -602,75 +630,90 @@ class ProjectsView(ctk.CTkFrame):
         conn = get_connection()
         if conn:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("""
-                SELECT t.name, t.item_type, t.unit_of_measure, pr.quantity, pr.status
+            # FIX: Added t.tool_id so we can load it back into the cart for editing!
+            cursor.execute('''
+                SELECT t.tool_id, t.name, t.item_type, t.unit_of_measure, pr.quantity, pr.status
                 FROM project_requirements pr
                 JOIN tool t ON pr.tool_id = t.tool_id
                 WHERE pr.project_id = %s
-            """, (row['project_id'],))
+            ''', (row['project_id'],))
             reqs = cursor.fetchall()
-            cursor.close()
-            conn.close()
+            cursor.close(); conn.close()
 
         if reqs:
             for req in reqs:
                 warning_icon = "⚠️ " if req['status'] == 'Warning' else "✓ "
                 text_col = "#D35400" if req['status'] == 'Warning' else "#1A1A1A"
-                row_str = (f"{warning_icon}{req['name']}  |  "
-                           f"{req['quantity']:g} {req['unit_of_measure']} ({req['item_type']})")
+                row_str = f"{warning_icon}{req['name']}  |  {req['quantity']:g} {req['unit_of_measure']} ({req['item_type']})"
                 req_row = ctk.CTkFrame(tools_scroll, fg_color="transparent", height=30)
                 req_row.pack(fill="x", pady=1)
-                ctk.CTkLabel(req_row, text=row_str,
-                             font=("Inter", 11, "bold" if req['status'] == 'Warning' else "normal"),
-                             text_color=text_col).pack(anchor="w", padx=8)
+                ctk.CTkLabel(req_row, text=row_str, font=("Inter", 11, "bold" if req['status'] == 'Warning' else "normal"), text_color=text_col).pack(anchor="w", padx=8)
         else:
             ctk.CTkLabel(tools_scroll, text="No tools listed.", text_color="gray").pack(pady=10)
 
-        if row['status'] == 'Approved' and row.get('admin_approver'):
-            ctk.CTkLabel(scroll,
-                         text=f"✅ Approved by: {row['admin_approver']}",
-                         font=("Inter", 11, "bold"), text_color="#2ECC71").pack(anchor="w", pady=(0, 5))
+        if 'Approved' in row['status'] and row.get('admin_approver'):
+            ctk.CTkLabel(scroll, text=f"✅ Approved by: {row['admin_approver']}", font=("Inter", 11, "bold"), text_color="#2ECC71").pack(anchor="w", pady=(0, 5))
 
+        # --- LIFECYCLE & EDIT BUTTONS ---
         btn_frame = ctk.CTkFrame(modal, fg_color="transparent")
         btn_frame.pack(side="bottom", fill="x", padx=20, pady=15)
 
-        if row['status'] == 'Pending' and self.is_admin:
-            def approve_project():
-                has_warnings = any(r['status'] == 'Warning' for r in reqs)
-                confirm_msg = "Approve this project? Tools can now be deployed for this site."
-                if has_warnings:
-                    confirm_msg = (
-                        "⚠️ WARNING: Some tools are currently deployed elsewhere.\n"
-                        "Ensure they are retrieved before this project's start date.\n\n"
-                        "Approve anyway?"
-                    )
-                if messagebox.askyesno("Confirm Approval", confirm_msg, parent=modal):
-                    conn = get_connection()
-                    if conn:
-                        cursor = conn.cursor()
-                        cursor.execute(
-                            "UPDATE projects SET status='Approved', approved_by=%s WHERE project_id=%s",
-                            (self.user_info['user_id'], row['project_id'])
-                        )
-                        conn.commit()
-                        cursor.close()
-                        conn.close()
+        def update_proj_status(new_status):
+            has_warnings = any(r['status'] == 'Warning' for r in reqs)
+            msg = f"Mark this project as {new_status}?"
+            if new_status == 'Approved' and has_warnings:
+                msg = "⚠️ WARNING: Tools are deployed elsewhere. Approve anyway?"
+                
+            if messagebox.askyesno("Confirm Status", msg, parent=modal):
+                conn = get_connection()
+                if conn:
+                    c = conn.cursor()
+                    if new_status == 'Approved':
+                        c.execute("UPDATE projects SET status=%s, approved_by=%s WHERE project_id=%s", (new_status, self.user_info['user_id'], row['project_id']))
+                    else:
+                        c.execute("UPDATE projects SET status=%s WHERE project_id=%s", (new_status, row['project_id']))
+                    conn.commit()
+                    c.close(); conn.close()
+                    if self.user_info.get("user_id"): log_action(self.user_info['user_id'], "Updated", "Projects", f"Project '{row['name']}' status changed to {new_status}.")
+                    modal.destroy()
+                    self.load_projects()
 
-                        uid = self.user_info.get("user_id")
-                        if uid:
-                            log_action(uid, "Approved", "Projects",
-                                       f"Approved project '{row['name']}' (ID: {row['project_id']})")
+        def trigger_edit_mode():
+            self.editing_project_id = row['project_id']
+            self.editing_project_status = row['status']
+            
+            self.p_name.delete(0, 'end'); self.p_name.insert(0, row['name'])
+            self.p_desc.delete("1.0", "end"); self.p_desc.insert("1.0", row.get('description') or "")
+            self.p_head.delete(0, 'end'); self.p_head.insert(0, row.get('project_head') or "")
+            self.p_client.delete(0, 'end'); self.p_client.insert(0, row['client'])
+            self.p_location.delete(0, 'end'); self.p_location.insert(0, row['location'])
+            self.p_start.set_date(row['start_date']); self.p_end.set_date(row['end_date'])
+            
+            self.workers_list = [w.strip() for w in (row.get('workers_assigned') or "").split(',') if w.strip()]
+            self._refresh_worker_tags()
+            
+            self.req_cart = [{'tool_id': r['tool_id'], 'name': r['name'], 'uom': r['unit_of_measure'], 'qty': r['quantity'], 'needs_retrieval': r['status'] == 'Warning'} for r in reqs]
+            self.refresh_req_cart()
+            
+            modal.destroy()
+            messagebox.showinfo("Edit Mode", "Project data loaded into the draft form.\nThe Submit button will now update this project.", parent=self.winfo_toplevel())
 
-                        modal.destroy()
-                        self.load_projects()
-                        messagebox.showinfo("Approved", "Project has been officially approved.",
-                                            parent=self.winfo_toplevel())
+        # Determine which buttons to show based on status
+        raw_status = row['status'].replace(' (OVERDUE)', '')
+        
+        if raw_status in ['Pending', 'Approved']:
+            ctk.CTkButton(btn_frame, text="Edit Project", width=90, fg_color="#F1C40F", hover_color="#D4AC0D", text_color="black", font=("Inter", 11, "bold"), command=trigger_edit_mode).pack(side="left", padx=5)
 
-            ctk.CTkButton(btn_frame, text="✓ Approve Project",
-                          fg_color="#2ECC71", hover_color="#27AE60",
-                          text_color="black", font=("Inter", 12, "bold"),
-                          command=approve_project).pack(side="left", expand=True, fill="x", padx=(0, 10))
+        if raw_status == 'Pending' and self.is_admin:
+            ctk.CTkButton(btn_frame, text="Approve", fg_color="#2ECC71", hover_color="#27AE60", text_color="black", font=("Inter", 11, "bold"), command=lambda: update_proj_status('Approved')).pack(side="left", padx=5)
 
-        ctk.CTkButton(btn_frame, text="Close", fg_color="#E0E0E0",
-                      text_color="black", hover_color="#CCCCCC", width=100,
-                      command=modal.destroy).pack(side="right")
+        if raw_status == 'Approved' and self.is_admin:
+            ctk.CTkButton(btn_frame, text="Mark Ongoing", fg_color="#3498DB", hover_color="#2980B9", font=("Inter", 11, "bold"), command=lambda: update_proj_status('Ongoing')).pack(side="left", padx=5)
+
+        if raw_status == 'Ongoing' and self.is_admin:
+            ctk.CTkButton(btn_frame, text="Complete Project", fg_color="#27AE60", hover_color="#1E8449", font=("Inter", 11, "bold"), command=lambda: update_proj_status('Completed')).pack(side="left", padx=5)
+
+        if raw_status in ['Pending', 'Approved', 'Ongoing'] and self.is_admin:
+            ctk.CTkButton(btn_frame, text="Cancel", fg_color="#E74C3C", hover_color="#C0392B", font=("Inter", 11, "bold"), command=lambda: update_proj_status('Cancelled')).pack(side="left", padx=5)
+
+        ctk.CTkButton(btn_frame, text="Close", width=70, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 11, "bold"), command=modal.destroy).pack(side="right", padx=5)

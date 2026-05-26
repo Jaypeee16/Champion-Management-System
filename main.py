@@ -112,13 +112,6 @@ class LoginApp(ctk.CTk):
         lbl_p.pack(side="left", padx=5)
         lbl_p.bind("<Button-1>", lambda e: self.open_forgot_password())
 
-        reg_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-        reg_frame.pack(pady=5)
-        lbl_r = ctk.CTkLabel(reg_frame, text="Don't have an account? Register Here",
-                              font=("Inter", 11, "bold"), text_color="#1E4528", cursor="hand2")
-        lbl_r.pack()
-        lbl_r.bind("<Button-1>", lambda e: self.open_register_window())
-
         self.load_remember_me()
 
     def center_window(self, window, width, height):
@@ -253,98 +246,6 @@ class LoginApp(ctk.CTk):
             self.deiconify()
             self.login_button.configure(state="normal", text="Login")
 
-    def open_register_window(self):
-        reg_win = ctk.CTkToplevel(self)
-        reg_win.title("Register Account")
-        self.center_window(reg_win, 450, 550)
-        reg_win.minsize(450, 550)
-        reg_win.configure(fg_color="#F4F6F8")
-        reg_win.attributes("-topmost", True)
-        reg_win.grab_set()
-
-        main_frame = ctk.CTkFrame(reg_win, fg_color="white", corner_radius=10,
-                                   border_width=1, border_color="#E0E0E0")
-        main_frame.pack(pady=20, padx=20, fill="both", expand=True)
-        content = ctk.CTkFrame(main_frame, fg_color="transparent")
-        content.place(relx=0.5, rely=0.5, anchor="center")
-
-        ctk.CTkLabel(content, text="CREATE ACCOUNT",
-                     font=("Inter", 18, "bold"), text_color="#1A1A1A").pack(pady=(5, 5))
-        ctk.CTkLabel(content, text="Register as Staff or Administrator",
-                     font=("Inter", 12), text_color="gray").pack(pady=(0, 10))
-
-        emp_id = ctk.CTkEntry(content, placeholder_text="Employee ID (e.g. EMP-001)",
-                               width=300, height=35)
-        emp_id.pack(pady=5)
-        full_name = ctk.CTkEntry(content, placeholder_text="Full Name",
-                                  width=300, height=35)
-        full_name.pack(pady=5)
-        email_entry = ctk.CTkEntry(content, placeholder_text="Email Address",
-                                    width=300, height=35)
-        email_entry.pack(pady=5)
-        role_var = ctk.StringVar(value="Staff")
-        role_menu = ctk.CTkOptionMenu(content, variable=role_var,
-                                       values=["Staff", "Admin"],
-                                       width=300, height=35,
-                                       fg_color="#F9FAFB", text_color="black",
-                                       button_color="#D1D5DB")
-        role_menu.pack(pady=5)
-        password = ctk.CTkEntry(content, placeholder_text="Password",
-                                 show="•", width=300, height=35)
-        password.pack(pady=5)
-        confirm_pass = ctk.CTkEntry(content, placeholder_text="Confirm Password",
-                                     show="•", width=300, height=35)
-        confirm_pass.pack(pady=5)
-
-        def submit_registration():
-            e_id = emp_id.get().strip()
-            name = full_name.get().strip()
-            email_val = email_entry.get().strip()
-            pwd = password.get().strip()
-            cpwd = confirm_pass.get().strip()
-            role = role_var.get()
-
-            if not all([e_id, name, email_val, pwd, cpwd]):
-                messagebox.showerror("Error", "All fields are required.", parent=reg_win)
-                return
-            if pwd != cpwd:
-                messagebox.showerror("Error", "Passwords do not match.", parent=reg_win)
-                return
-
-            conn = get_connection()
-            if not conn:
-                return
-            try:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM user WHERE employee_id=%s OR email=%s", (e_id, email_val))
-                if cursor.fetchone():
-                    messagebox.showerror("Error", "Employee ID or Email already exists.", parent=reg_win)
-                    return
-                hashed_pw = bcrypt.hashpw(pwd.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                cursor.execute("""
-                    INSERT INTO user (employee_id, full_name, email, password_hash, role)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (e_id, name, email_val, hashed_pw, role))
-                conn.commit()
-                new_uid = cursor.lastrowid
-                log_action(new_uid, "Registered", "Authentication",
-                           f"New account registered: '{name}' ({e_id}) as {role}.")
-                messagebox.showinfo("Success", f"Account registered as {role}.", parent=reg_win)
-                reg_win.destroy()
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to register: {e}", parent=reg_win)
-            finally:
-                if conn.is_connected():
-                    cursor.close()
-                    conn.close()
-
-        ctk.CTkButton(content, text="Register", fg_color="#1E4528", hover_color="#14301C",
-                      width=300, height=40,
-                      command=submit_registration).pack(pady=(15, 10))
-        ctk.CTkButton(content, text="Cancel", fg_color="transparent",
-                      text_color="gray", hover_color="#F3F4F6", width=300,
-                      command=reg_win.destroy).pack(pady=(0, 5))
-
     def open_forgot_username(self):
         dialog = ctk.CTkToplevel(self)
         dialog.title("Forgot Username")
@@ -403,89 +304,53 @@ class LoginApp(ctk.CTk):
 
     def open_forgot_password(self):
         dialog = ctk.CTkToplevel(self)
-        dialog.title("Forgot Password")
-        self.center_window(dialog, 450, 400)
+        dialog.title("Request Password Reset")
+        self.center_window(dialog, 450, 300)
         dialog.configure(fg_color="#F4F6F8")
         dialog.attributes("-topmost", True)
         dialog.grab_set()
+
         main_frame = ctk.CTkFrame(dialog, fg_color="white", corner_radius=10,
                                    border_width=1, border_color="#E0E0E0")
         main_frame.pack(pady=20, padx=20, fill="both", expand=True)
         content = ctk.CTkFrame(main_frame, fg_color="transparent")
         content.place(relx=0.5, rely=0.5, anchor="center")
-        title_lbl = ctk.CTkLabel(content, text="RESET PASSWORD",
-                                  font=("Inter", 14, "bold"), text_color="#1A1A1A")
-        title_lbl.pack(anchor="w", padx=10, pady=(10, 5))
-        desc_lbl = ctk.CTkLabel(content,
-                                 text="Verify your identity with your Employee ID and email.",
-                                 font=("Inter", 11), text_color="gray", justify="left")
-        desc_lbl.pack(anchor="w", padx=10, pady=(0, 15))
-        emp_id = ctk.CTkEntry(content, placeholder_text="Employee ID",
-                               width=340, height=35)
-        emp_id.pack(padx=10, pady=5)
-        email_entry = ctk.CTkEntry(content, placeholder_text="Registered Email",
+
+        ctk.CTkLabel(content, text="REQUEST PASSWORD RESET",
+                     font=("Inter", 14, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=10, pady=(10, 5))
+        ctk.CTkLabel(content,
+                     text="Enter your Employee ID. A notification will be sent\nto the System Administrator to reset your password.",
+                     font=("Inter", 11), text_color="gray", justify="left").pack(anchor="w", padx=10, pady=(0, 15))
+                     
+        emp_id_entry = ctk.CTkEntry(content, placeholder_text="Employee ID (e.g. EMP-001)",
                                     width=340, height=35)
-        email_entry.pack(padx=10, pady=(5, 15))
+        emp_id_entry.pack(padx=10, pady=(5, 15))
 
-        def verify_and_reset():
-            e_id = emp_id.get().strip()
-            e_mail = email_entry.get().strip()
-            if not e_id or not e_mail:
-                messagebox.showerror("Error", "Fill in both fields.", parent=dialog)
+        def send_reset_request():
+            e_id = emp_id_entry.get().strip()
+            if not e_id:
+                messagebox.showerror("Error", "Please enter your Employee ID.", parent=dialog)
                 return
+                
             conn = get_connection()
-            if not conn:
-                return
+            if not conn: return
+            
             try:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM user WHERE employee_id=%s AND email=%s", (e_id, e_mail))
-                if cursor.fetchone():
-                    emp_id.pack_forget()
-                    email_entry.pack_forget()
-                    btn_frame.pack_forget()
-                    title_lbl.configure(text="SET NEW PASSWORD")
-                    desc_lbl.configure(text="Identity verified! Enter your new password.")
-                    new_pass = ctk.CTkEntry(content, placeholder_text="New Password",
-                                            show="•", width=340, height=35)
-                    new_pass.pack(padx=10, pady=5)
-                    confirm_pass = ctk.CTkEntry(content, placeholder_text="Confirm New Password",
-                                                show="•", width=340, height=35)
-                    confirm_pass.pack(padx=10, pady=(5, 15))
-
-                    def submit_new_password():
-                        pwd = new_pass.get().strip()
-                        cpwd = confirm_pass.get().strip()
-                        if not pwd or not cpwd:
-                            messagebox.showerror("Error", "Fill in all fields.", parent=dialog)
-                            return
-                        if pwd != cpwd:
-                            messagebox.showerror("Error", "Passwords do not match.", parent=dialog)
-                            return
-                        conn2 = get_connection()
-                        if not conn2:
-                            return
-                        try:
-                            c2 = conn2.cursor()
-                            hashed = bcrypt.hashpw(pwd.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                            c2.execute("UPDATE user SET password_hash=%s WHERE employee_id=%s",
-                                       (hashed, e_id))
-                            conn2.commit()
-                            messagebox.showinfo("Success", "Password reset! You can now log in.",
-                                                parent=dialog)
-                            dialog.destroy()
-                        except Exception as e:
-                            messagebox.showerror("Error", f"Update error: {e}", parent=dialog)
-                        finally:
-                            if conn2.is_connected():
-                                c2.close()
-                                conn2.close()
-
-                    ctk.CTkButton(content, text="Confirm Reset", fg_color="#1E4528",
-                                  hover_color="#14301C", width=340, height=40,
-                                  command=submit_new_password).pack(padx=10, pady=5)
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute("SELECT user_id, full_name FROM user WHERE employee_id=%s", (e_id,))
+                user = cursor.fetchone()
+                
+                if user:
+                    # Log the request straight to the Admin's Activity Dashboard!
+                    log_action(user['user_id'], "Flagged", "Authentication", 
+                               f"ACCOUNT LOCKED: '{user['full_name']}' requested a password reset.")
+                               
+                    messagebox.showinfo("Request Sent", 
+                                        "Your request has been logged to the Admin Dashboard.\nPlease contact your administrator for your temporary password.", 
+                                        parent=dialog)
+                    dialog.destroy()
                 else:
-                    messagebox.showerror("Access Denied",
-                                         "No matching account with that ID and Email.", parent=dialog)
+                    messagebox.showerror("Not Found", "No account matches that Employee ID.", parent=dialog)
             except Exception as e:
                 messagebox.showerror("Error", f"Database error: {e}", parent=dialog)
             finally:
@@ -495,11 +360,10 @@ class LoginApp(ctk.CTk):
 
         btn_frame = ctk.CTkFrame(content, fg_color="transparent")
         btn_frame.pack(fill="x", padx=10, pady=(0, 10))
-        ctk.CTkButton(btn_frame, text="Verify Account", fg_color="#1E4528",
-                      hover_color="#14301C",
-                      command=verify_and_reset).pack(side="left", expand=True, fill="x", padx=(0, 10))
-        ctk.CTkButton(btn_frame, text="Cancel", width=80, fg_color="#E0E0E0",
-                      text_color="black", hover_color="#CCCCCC",
+        
+        ctk.CTkButton(btn_frame, text="Send Request to Admin", fg_color="#D8000C", hover_color="#B00000",
+                      command=send_reset_request).pack(side="left", expand=True, fill="x", padx=(0, 10))
+        ctk.CTkButton(btn_frame, text="Cancel", width=80, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC",
                       command=dialog.destroy).pack(side="right")
 
     def on_closing(self):
