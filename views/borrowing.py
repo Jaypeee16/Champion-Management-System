@@ -524,9 +524,20 @@ class BorrowingView(ctk.CTkFrame):
             temp_dir = tempfile.gettempdir()
             file_path = os.path.join(temp_dir, f"Receipt_TRN_Multi.pdf")
             canvas.save(file_path, "PDF", resolution=100.0)
-            os.startfile(file_path, "print")
+            try:
+                os.startfile(file_path)
+            except Exception:
+                messagebox.showinfo(
+                    "Receipt Generated",
+                    f"Receipt saved to: {file_path}\nPlease open and print it from your PDF viewer.",
+                    parent=self.winfo_toplevel()
+                )
         except Exception as e:
-            messagebox.showwarning("Print Warning", f"Transaction saved, but receipt failed to print:\n{e}", parent=self.winfo_toplevel())
+            messagebox.showerror(
+                "Receipt Error",
+                f"Unable to generate receipt: {e}",
+                parent=self.winfo_toplevel()
+            )
 
     def verify_tool_for_return(self):
         if not self.active_return_user_id:
