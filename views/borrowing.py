@@ -200,7 +200,9 @@ class BorrowingView(ctk.CTkFrame):
             cv2.putText(frame, "Align QR Code inside box", (top_left[0], top_left[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             cv2.putText(frame, "Press 'Q' to Cancel", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
             
-            detected_codes = decode(frame, symbols=[ZBarSymbol.QRCODE])
+            roi = frame[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]]
+            gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            detected_codes = decode(gray_roi, symbols=[ZBarSymbol.QRCODE])
             for barcode in detected_codes:
                 raw_data = barcode.data.decode('utf-8')
                 if "Tag ID:" in raw_data:
@@ -208,10 +210,10 @@ class BorrowingView(ctk.CTkFrame):
                     detected_data = first_line.replace("Tag ID:", "").strip()
                 else:
                     detected_data = raw_data.strip()
-                break 
+                break
                 
             cv2.imshow('Champion Scanner - Turbo Mode', frame)
-            if detected_data or cv2.waitKey(1) & 0xFF == ord('q'): break
+            if detected_data or cv2.waitKey(10) & 0xFF == ord('q'): break
 
         cap.release()
         cv2.destroyAllWindows()
@@ -268,6 +270,34 @@ class BorrowingView(ctk.CTkFrame):
                 self.b_project_menu.configure(values=["Scan Employee ID first..."], state="disabled")
                 self.b_project_menu.set("Scan Employee ID first...")
                 self._clear_proj_req_display()
+        finally:
+            if conn.is_connected(): cursor.close(); conn.close()
+
+    def verify_return_employee(self):
+        emp_id = self.r_emp_id.get().strip()
+        if not emp_id:
+            return
+
+        conn = get_connection()
+        if not conn:
+            return
+
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT user_id, full_name, role FROM user WHERE employee_id = %s", (emp_id,))
+            user = cursor.fetchone()
+
+            if user:
+                self.active_return_user_id = user['user_id']
+                self.r_user_name.configure(text=f"✓ Verified: {user['full_name']} ({user['role']})", text_color="#2ECC71")
+                self.r_record_info.configure(text="Record: Pending Scan...", text_color="#999999")
+                self.active_return_tool_id = None
+                self.max_returnable = 0
+                self.r_tag_id.focus_set()
+            else:
+                self.active_return_user_id = None
+                self.r_user_name.configure(text="❌ Employee ID not found.", text_color="#D8000C")
+                self.r_record_info.configure(text="Record: Pending Scan...", text_color="#999999")
         finally:
             if conn.is_connected(): cursor.close(); conn.close()
 
