@@ -13,9 +13,9 @@ class BorrowingView(ctk.CTkFrame):
         
         self.user_info = user_info or {}
         
-        self.grid_columnconfigure(0, weight=1) 
-        self.grid_rowconfigure(1, weight=3)
-        self.grid_rowconfigure(2, weight=2)
+        self.grid_columnconfigure(0, weight=2)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
         self.active_borrow_user_id = None
         self.active_borrow_user_name = None
@@ -45,7 +45,7 @@ class BorrowingView(ctk.CTkFrame):
 
         # STICKY CONTENT AREA: It scrolls, but the tabs above it stay frozen!
         self.tab_content = ctk.CTkScrollableFrame(self, fg_color="white", corner_radius=10)
-        self.tab_content.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 10))
+        self.tab_content.grid(row=1, column=0, sticky="nsew", padx=20, pady=20)
         self.tab_content.grid_columnconfigure(0, weight=1)  
         
         self.switch_tab(tabs[0])
@@ -151,7 +151,7 @@ class BorrowingView(ctk.CTkFrame):
 
     def build_history_table(self):
         history_card = ctk.CTkFrame(self, fg_color="white", corner_radius=10)
-        history_card.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
+        history_card.grid(row=1, column=1, sticky="nsew", padx=(10, 20), pady=20)
         
         top_bar = ctk.CTkFrame(history_card, fg_color="transparent")
         top_bar.pack(fill="x", padx=20, pady=(15, 10))
@@ -654,4 +654,4 @@ class BorrowingView(ctk.CTkFrame):
                     txt_color = "#D8000C" if col == 6 and text == "Active" else ("#2ECC71" if col == 6 else "#1A1A1A")
                     ctk.CTkLabel(row_frame, text=text, font=("Inter", 11), text_color=txt_color).grid(row=0, column=col, padx=10, pady=5, sticky="w")
         finally:
-            if conn.is_connected(): cursor.close(); conn.close()
+            if conn.is_connected(): cursor.close(); conn.close()    
