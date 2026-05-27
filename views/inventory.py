@@ -2,14 +2,14 @@ import customtkinter as ctk
 from tkinter import messagebox
 from database import get_connection, log_action
 
-
 class InventoryView(ctk.CTkFrame):
     def __init__(self, parent, user_info=None):
         super().__init__(parent, fg_color="transparent")
 
         self.user_info = user_info or {}
 
-        self.scroll_wrapper = ctk.CTkScrollableFrame(self, fg_color="transparent", orientation="horizontal")
+        # FIX: Changed to a standard CTkFrame so the page background stays static!
+        self.scroll_wrapper = ctk.CTkFrame(self, fg_color="transparent")
         self.scroll_wrapper.pack(fill="both", expand=True)
 
         self.tool_hash_table = {}
@@ -17,9 +17,10 @@ class InventoryView(ctk.CTkFrame):
         self.build_left_form()
         self.build_right_table()
         self.load_inventory_data()
-        
-        # Load the categories and suppliers from the database on startup
         self.load_dynamic_dropdowns() 
+        
+        # FIX: Global Keyboard Navigation (Auto-focus first entry)
+        self.name_entry.focus_set()
 
     def build_left_form(self):
         form_frame = ctk.CTkScrollableFrame(self.scroll_wrapper, fg_color="white", corner_radius=10, width=320)
@@ -44,10 +45,7 @@ class InventoryView(ctk.CTkFrame):
         self.uom_menu = ctk.CTkOptionMenu(uom_frame, values=["pcs", "boxes", "sets", "kg", "rolls", "packs", "liters", "meters", "feet"], fg_color="#E8F8F5", text_color="black")
         self.uom_menu.pack(fill="x", pady=(5, 0))
 
-        # Consumable note
-        ctk.CTkLabel(form_frame,
-                     text="💡 Consumables (e.g. boxes of nails) support fractional returns.\n   e.g., return 0.5 if half a box was used.",
-                     font=("Inter", 10), text_color="#888888", justify="left", wraplength=270).pack(anchor="w", padx=20, pady=(5, 5))
+        ctk.CTkLabel(form_frame, text="💡 Consumables (e.g. boxes of nails) support fractional returns.\n   e.g., return 0.5 if half a box was used.", font=("Inter", 10), text_color="#888888", justify="left", wraplength=270).pack(anchor="w", padx=20, pady=(5, 5))
 
         ctk.CTkLabel(form_frame, text="Product Name *", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
         self.name_entry = ctk.CTkEntry(form_frame, placeholder_text="e.g., #2 Nails (Box)")
@@ -109,7 +107,6 @@ class InventoryView(ctk.CTkFrame):
             
             self.cat_menu.configure(values=cats)
             self.sup_menu.configure(values=sups)
-            
             self.cat_menu.set("Type or select...")
             self.sup_menu.set("Type or select...")
             
@@ -119,7 +116,7 @@ class InventoryView(ctk.CTkFrame):
             if conn.is_connected(): cursor.close(); conn.close()
 
     def build_right_table(self):
-        table_frame = ctk.CTkFrame(self.scroll_wrapper, fg_color="white", corner_radius=10, width=900)
+        table_frame = ctk.CTkFrame(self.scroll_wrapper, fg_color="white", corner_radius=10)
         table_frame.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=0)
 
         search_frame = ctk.CTkFrame(table_frame, fg_color="transparent")
@@ -163,7 +160,6 @@ class InventoryView(ctk.CTkFrame):
 
         try:
             cursor = conn.cursor(dictionary=True)
-            # BAGONG SQL: May subquery na naghahanap ng active project!
             base_query = """
                 SELECT t.tool_id, IFNULL(t.item_type, 'Equipment') as item_type,
                        IFNULL(t.unit_of_measure, 'pcs') as uom,
@@ -210,7 +206,6 @@ class InventoryView(ctk.CTkFrame):
                 avail = f"{row['qty_avail']:g}" if row['qty_avail'] else "0"
                 tot = f"{row['qty_tot']:g}" if row['qty_tot'] else "0"
                 
-                # BAGONG LOGIC: Kapag nabawasan ang avail stocks at may project, magiging "Deployed"
                 display_loc = row['base_location']
                 if row.get('active_project') and float(row['qty_avail']) < float(row['qty_tot']):
                     display_loc = f"Deployed: {row['active_project']}"
@@ -229,7 +224,6 @@ class InventoryView(ctk.CTkFrame):
                 for col, (text, weight) in enumerate(zip(display_data, self.weights)):
                     row_frame.grid_columnconfigure(col, weight=weight)
                     
-                    # BAGONG COLOR: Blue text kapag Deployed
                     if col == 7 and "Deployed:" in str(text):
                         txt_col = "#2980B9"
                     else:
@@ -302,8 +296,6 @@ class InventoryView(ctk.CTkFrame):
             messagebox.showinfo("Success", f"{itype} '{name}' added successfully.", parent=self.winfo_toplevel())
             self.clear_form()
             self.load_inventory_data()
-            
-            # Refresh dropdowns so the newly typed supplier/category shows up!
             self.load_dynamic_dropdowns() 
         except Exception as e:
             messagebox.showerror("Database Error", str(e), parent=self.winfo_toplevel())
@@ -314,15 +306,13 @@ class InventoryView(ctk.CTkFrame):
 
     def open_tool_modal(self, lookup_id):
         data = self.tool_hash_table.get(lookup_id)
-        if not data:
-            return
+        if not data: return
 
         modal = ctk.CTkToplevel(self)
         modal.title(f"Manage Item: {lookup_id}")
         modal.geometry("480x750")
         modal.configure(fg_color="white")
         modal.attributes("-topmost", True)
-
         modal.update_idletasks()
         x = (modal.winfo_screenwidth() // 2) - (480 // 2)
         y = (modal.winfo_screenheight() // 2) - (750 // 2)
@@ -383,29 +373,23 @@ class InventoryView(ctk.CTkFrame):
 
             if messagebox.askyesno("Confirm Update", "Save all changes to the database?", parent=modal):
                 conn = get_connection()
-                if not conn:
-                    return
+                if not conn: return
                 try:
                     cursor = conn.cursor()
                     cursor.execute("""
-                        UPDATE tool
-                        SET name=%s, description=%s, category=%s, supplier=%s,
-                            location=%s, item_type=%s, unit_of_measure=%s, `condition`=%s
+                        UPDATE tool SET name=%s, description=%s, category=%s, supplier=%s, location=%s, item_type=%s, unit_of_measure=%s, `condition`=%s
                         WHERE tool_id=%s
-                    """, (name_entry.get(), desc_entry.get(), cat_entry.get(), sup_entry.get(),
-                          loc_entry.get(), type_menu.get(), uom_menu.get(), status_menu.get(), lookup_id))
+                    """, (name_entry.get(), desc_entry.get(), cat_entry.get(), sup_entry.get(), loc_entry.get(), type_menu.get(), uom_menu.get(), status_menu.get(), lookup_id))
 
                     qty_diff = new_qty - float(data['qty_tot'])
                     cursor.execute("""
-                        UPDATE inventory
-                        SET quantity_total=%s, quantity_available=quantity_available + %s
-                        WHERE tool_id=%s
+                        UPDATE inventory SET quantity_total=%s, quantity_available=quantity_available + %s WHERE tool_id=%s
                     """, (new_qty, qty_diff, lookup_id))
                     conn.commit()
 
                     uid = self.user_info.get("user_id")
                     if uid:
-                        log_action(uid, "Edited", "Inventory", f"Edited item '{name_entry.get()}' (PID: {lookup_id}) — Type: {type_menu.get()}, Supplier: {sup_entry.get()}, Condition: {status_menu.get()}, Qty: {new_qty}")
+                        log_action(uid, "Edited", "Inventory", f"Edited item '{name_entry.get()}' (PID: {lookup_id})")
 
                     modal.destroy()
                     self.load_inventory_data()
@@ -413,9 +397,7 @@ class InventoryView(ctk.CTkFrame):
                 except Exception as e:
                     messagebox.showerror("Database Error", str(e), parent=modal)
                 finally:
-                    if conn.is_connected():
-                        cursor.close()
-                        conn.close()
+                    if conn.is_connected(): cursor.close(); conn.close()
 
         def execute_archive():
             if messagebox.askyesno("Confirm", "Archive this item? It will be hidden from active inventory.", parent=modal):
@@ -424,13 +406,9 @@ class InventoryView(ctk.CTkFrame):
                     cursor = conn.cursor()
                     cursor.execute("UPDATE tool SET is_archived=1, archived_at=NOW() WHERE tool_id=%s", (lookup_id,))
                     conn.commit()
-                    cursor.close()
-                    conn.close()
-
+                    cursor.close(); conn.close()
                     uid = self.user_info.get("user_id")
-                    if uid:
-                        log_action(uid, "Archived", "Inventory", f"Archived item '{data['name']}' (PID: {lookup_id})")
-
+                    if uid: log_action(uid, "Archived", "Inventory", f"Archived item '{data['name']}'")
                     modal.destroy()
                     self.load_inventory_data()
 

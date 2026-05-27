@@ -8,20 +8,19 @@ from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
 
 class BorrowingView(ctk.CTkFrame): 
-    # Use CTkFrame so the tabs stay STICKY at the top!
     def __init__(self, parent, user_info=None, *args, **kwargs):
         super().__init__(parent, fg_color="transparent")
         
         self.user_info = user_info or {}
         
         self.grid_columnconfigure(0, weight=1) 
-        self.grid_rowconfigure(1, weight=3) # Tab content gets more space
-        self.grid_rowconfigure(2, weight=2) # History table gets bottom space
+        self.grid_rowconfigure(1, weight=3)
+        self.grid_rowconfigure(2, weight=2)
 
         self.active_borrow_user_id = None
         self.active_borrow_user_name = None
         self.borrow_cart = [] 
-        self.current_project_reqs = [] # Holds the requirements for the selected project
+        self.current_project_reqs = [] 
         
         self.active_return_user_id = None
         self.active_return_tool_id = None
@@ -38,7 +37,6 @@ class BorrowingView(ctk.CTkFrame):
         tabs = ["📤 Tool Issuance", "📥 Tool Retrieval"]
         self.tab_var = ctk.StringVar(value=tabs[0])
         
-        # SLEEK IMAGE 1 TABS
         self.seg_btn = ctk.CTkSegmentedButton(
             top_bar, values=tabs, variable=self.tab_var, command=self.switch_tab,
             fg_color="#F0F0F0", selected_color="#1E4528", selected_hover_color="#14301C"
@@ -48,7 +46,7 @@ class BorrowingView(ctk.CTkFrame):
         # STICKY CONTENT AREA: It scrolls, but the tabs above it stay frozen!
         self.tab_content = ctk.CTkScrollableFrame(self, fg_color="white", corner_radius=10)
         self.tab_content.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 10))
-        self.tab_content.grid_columnconfigure(0, weight=1)
+        self.tab_content.grid_columnconfigure(0, weight=1)  
         
         self.switch_tab(tabs[0])
 
@@ -56,8 +54,12 @@ class BorrowingView(ctk.CTkFrame):
         for widget in self.tab_content.winfo_children(): widget.destroy()
         if selected_tab == "📤 Tool Issuance":
             self.build_issuance_tab(self.tab_content)
+            # FIX: Auto-focus Employee ID input
+            self.b_emp_id.focus_set()
         else:
             self.build_retrieval_tab(self.tab_content)
+            # FIX: Auto-focus Return ID input
+            self.r_emp_id.focus_set()
 
     def build_issuance_tab(self, parent_tab):
         ctk.CTkLabel(parent_tab, text="Project Tool Deployment", font=("Inter", 16, "bold"), text_color="#1E4528").pack(anchor="w", padx=20, pady=(10, 5))
@@ -81,7 +83,6 @@ class BorrowingView(ctk.CTkFrame):
         self.b_project_menu.pack(fill="x", padx=20, pady=(5, 5))
         self.active_projects_map = {}
 
-        # Project Requirements Display Box
         self.proj_req_frame = ctk.CTkFrame(parent_tab, fg_color="#FFF8F0", corner_radius=5, border_width=1, border_color="#E0E0E0")
         self.proj_req_frame.pack(fill="x", padx=20, pady=(5, 15))
         ctk.CTkLabel(self.proj_req_frame, text="Project Requirements will appear here...", font=("Inter", 11, "italic"), text_color="gray").pack(pady=10)
@@ -176,9 +177,6 @@ class BorrowingView(ctk.CTkFrame):
         self.data_scroll = ctk.CTkScrollableFrame(history_card, fg_color="transparent")
         self.data_scroll.pack(fill="both", expand=True, padx=20, pady=(5, 15))
 
-    # ==========================================
-    # LOGIC: TURBO WEBCAM SCANNER
-    # ==========================================
     def open_scanner(self, target_entry, trigger_method):
         try: cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
         except: cap = cv2.VideoCapture(0) 
@@ -191,7 +189,6 @@ class BorrowingView(ctk.CTkFrame):
         while True:
             ret, frame = cap.read()
             if not ret: break
-            
             height, width, _ = frame.shape
             top_left = (int(width*0.25), int(height*0.3))
             bottom_right = (int(width*0.75), int(height*0.7))
@@ -220,9 +217,6 @@ class BorrowingView(ctk.CTkFrame):
             target_entry.insert(0, detected_data)
             trigger_method()
 
-    # ==========================================
-    # LOGIC: BORROWING & PROJECT VERIFICATION
-    # ==========================================
     def verify_borrower(self):
         emp_id = self.b_emp_id.get().strip()
         if not emp_id: return
@@ -238,7 +232,6 @@ class BorrowingView(ctk.CTkFrame):
                 self.active_borrow_user_name = user['full_name']
                 self.b_user_name.configure(text=f"✓ Verified: {user['full_name']} ({user['role']})", text_color="#2ECC71")
                 
-                # Fetch Active Projects that still need tools!
                 cursor.execute("""
                     SELECT DISTINCT p.project_id, p.name, p.client 
                     FROM projects p
@@ -294,11 +287,14 @@ class BorrowingView(ctk.CTkFrame):
         if not conn: return
         try:
             cursor = conn.cursor(dictionary=True)
+            # FIX: Joined with projects table to get full Project Details (Name, Client, Location)
             cursor.execute("""
                 SELECT pr.tool_id, t.name, pr.quantity as req_qty, pr.status,
-                       (SELECT COUNT(*) FROM transaction WHERE project_id = %s AND tool_id = pr.tool_id AND type = 'Issue' AND status = 'Active') as issued_qty
+                       (SELECT COUNT(*) FROM transaction WHERE project_id = %s AND tool_id = pr.tool_id AND type = 'Issue' AND status = 'Active') as issued_qty,
+                       p.name as p_name, p.client as p_client, p.location as p_location
                 FROM project_requirements pr
                 JOIN tool t ON pr.tool_id = t.tool_id
+                JOIN projects p ON pr.project_id = p.project_id
                 WHERE pr.project_id = %s
             """, (proj_id, proj_id))
             
@@ -307,12 +303,20 @@ class BorrowingView(ctk.CTkFrame):
             
             for w in self.proj_req_frame.winfo_children(): w.destroy()
             
+            # FIX: Displaying the Project Header before listing tools
+            if reqs:
+                p_name = reqs[0]['p_name']
+                p_client = reqs[0]['p_client']
+                p_loc = reqs[0]['p_location']
+                header_text = f"📍 Project: {p_name}\n🏢 Client: {p_client}  |  Site: {p_loc}"
+                ctk.CTkLabel(self.proj_req_frame, text=header_text, font=("Inter", 12, "bold"), text_color="#1E4528", justify="left").pack(anchor="w", padx=10, pady=(10, 5))
+                ctk.CTkFrame(self.proj_req_frame, height=1, fg_color="#E0E0E0").pack(fill="x", padx=10, pady=(0, 5))
+            
             all_fulfilled = True
             for r in reqs:
                 needed = float(r['req_qty'])
                 issued = float(r['issued_qty'])
                 remaining = needed - issued
-                
                 if remaining > 0: all_fulfilled = False
                 
                 txt_color = "#D8000C" if remaining > 0 else "#2ECC71"
@@ -323,6 +327,8 @@ class BorrowingView(ctk.CTkFrame):
             if not all_fulfilled:
                 self.b_tag_id.configure(state="normal")
                 self.b_scan_btn.configure(state="normal")
+                # Auto focus scanner field
+                self.b_tag_id.focus_set()
             else:
                 self.b_tag_id.configure(state="disabled")
                 self.b_scan_btn.configure(state="disabled")
@@ -349,14 +355,11 @@ class BorrowingView(ctk.CTkFrame):
             if not tool:
                 messagebox.showerror("Not Found", "Invalid or Unassigned Tag ID.", parent=self.winfo_toplevel())
                 return
-                
             if tool['qty'] <= 0:
                 messagebox.showerror("Out of Stock", f"'{tool['name']}' is currently out of stock!", parent=self.winfo_toplevel())
                 return
 
-            # --- THE REQUISITION WALL (CHECK AGAINST SELECTED PROJECT) ---
             req = next((r for r in self.current_project_reqs if r['tool_id'] == tool['tool_id']), None)
-            
             if not req:
                 messagebox.showerror("Unauthorized", f"'{tool['name']}' is NOT approved for this project.", parent=self.winfo_toplevel())
                 return
@@ -366,10 +369,9 @@ class BorrowingView(ctk.CTkFrame):
             in_cart = sum(item['qty_borrowed'] for item in self.borrow_cart if item['id'] == tool['tool_id'])
 
             if (already_issued + in_cart + 1) > allowed_qty:
-                messagebox.showerror("Limit Reached", f"Cannot add '{tool['name']}'.\\nApproved Limit: {allowed_qty:g}\\nAlready Issued: {already_issued}\\nIn Cart: {in_cart}", parent=self.winfo_toplevel())
+                messagebox.showerror("Limit Reached", f"Cannot add '{tool['name']}'.\nApproved Limit: {allowed_qty:g}\nAlready Issued: {already_issued}\nIn Cart: {in_cart}", parent=self.winfo_toplevel())
                 return
 
-            # Update existing cart item or append new
             existing = next((item for item in self.borrow_cart if item['id'] == tool['tool_id']), None)
             if existing:
                 existing['qty_borrowed'] += 1
@@ -388,10 +390,8 @@ class BorrowingView(ctk.CTkFrame):
     def update_cart_qty(self, index, change):
         item = self.borrow_cart[index]
         new_qty = item['qty_borrowed'] + change
-        
         req = next((r for r in self.current_project_reqs if r['tool_id'] == item['id']), None)
         if not req: return
-        
         allowed_qty = float(req['req_qty'])
         already_issued = float(req['issued_qty'])
         
@@ -415,53 +415,37 @@ class BorrowingView(ctk.CTkFrame):
             row = ctk.CTkFrame(self.cart_frame, fg_color="white", corner_radius=5, height=35)
             row.pack(fill="x", pady=2, padx=5)
             row.pack_propagate(False)
-            
             ctk.CTkLabel(row, text=f"✓ {item['name']}  |  Tag: {item['tag']}", font=("Inter", 12, "bold"), text_color="#1E4528").pack(side="left", padx=10, pady=5)
-            
             ctk.CTkButton(row, text="✕", width=25, height=25, fg_color="#FFEAEA", text_color="#D8000C", hover_color="#FFC0C0", command=lambda idx=i: self.remove_from_cart(idx)).pack(side="right", padx=(5, 10))
             ctk.CTkButton(row, text="+", width=25, height=25, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=lambda idx=i: self.update_cart_qty(idx, 1)).pack(side="right", padx=2)
             ctk.CTkLabel(row, text=f"Qty: {item['qty_borrowed']}", font=("Inter", 11, "bold"), text_color="black").pack(side="right", padx=8)
             ctk.CTkButton(row, text="-", width=25, height=25, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=lambda idx=i: self.update_cart_qty(idx, -1)).pack(side="right", padx=2)
 
-    def remove_from_cart(self, index):
-        self.borrow_cart.pop(index)
-        self.refresh_cart_ui()
-
     def execute_borrow(self):
         if not self.active_borrow_user_id:
-            messagebox.showerror("Error", "Please scan and verify an Employee ID first.", parent=self.winfo_toplevel())
-            return
-            
+            return messagebox.showerror("Error", "Please scan and verify an Employee ID first.", parent=self.winfo_toplevel())
         selected_proj = self.b_project_menu.get()
         proj_id = self.active_projects_map.get(selected_proj)
-        
         if not proj_id:
-            messagebox.showerror("Error", "Please select a target project.", parent=self.winfo_toplevel())
-            return
-        
+            return messagebox.showerror("Error", "Please select a target project.", parent=self.winfo_toplevel())
         if len(self.borrow_cart) == 0:
-            messagebox.showerror("Error", "The cart is empty! Scan at least one tool.", parent=self.winfo_toplevel())
-            return
+            return messagebox.showerror("Error", "The cart is empty! Scan at least one tool.", parent=self.winfo_toplevel())
             
         purpose = selected_proj
-        
         conn = get_connection()
         if not conn: return
         try:
             cursor = conn.cursor(dictionary=True)
-            transaction_ids = []
-            receipt_tool_list = []
+            transaction_ids = []; receipt_tool_list = []
             
             for item in self.borrow_cart:
                 cursor.execute("UPDATE inventory SET quantity_available = quantity_available - %s WHERE tool_id = %s", (item['qty_borrowed'], item['id']))
-                
                 for _ in range(int(item['qty_borrowed'])):
                     cursor.execute("""
                         INSERT INTO transaction (user_id, tool_id, type, borrow_date, purpose, status, condition_at_borrow, project_id) 
                         VALUES (%s, %s, 'Issue', NOW(), %s, 'Active', %s, %s)
                     """, (self.active_borrow_user_id, item['id'], purpose, item['cond'], proj_id))
                     transaction_ids.append(str(cursor.lastrowid))
-                
                 receipt_tool_list.append(f"{item['name']} (Qty: {item['qty_borrowed']})")
                 
             cursor.execute("""
@@ -475,8 +459,7 @@ class BorrowingView(ctk.CTkFrame):
             for r in reqs:
                 if float(r['total_issued']) >= float(r['req_qty']):
                     cursor.execute("UPDATE project_requirements SET status = 'Fulfilled' WHERE req_id = %s", (r['req_id'],))
-                else:
-                    all_fulfilled = False
+                else: all_fulfilled = False
                     
             if all_fulfilled:
                 cursor.execute("UPDATE projects SET status = 'Ongoing' WHERE project_id = %s", (proj_id,))
@@ -495,12 +478,9 @@ class BorrowingView(ctk.CTkFrame):
             self.b_project_menu.set("Scan Employee ID first...")
             self.b_project_menu.configure(state="disabled")
             self._clear_proj_req_display()
-            
             self.b_user_name.configure(text="Name: Pending Scan...", text_color="gray")
-            self.active_borrow_user_id = None
-            self.borrow_cart.clear()
-            self.refresh_cart_ui()
-            self.load_transaction_history()
+            self.active_borrow_user_id = None; self.borrow_cart.clear()
+            self.refresh_cart_ui(); self.load_transaction_history()
             
         except Exception as e:
             messagebox.showerror("Database Error", str(e), parent=self.winfo_toplevel())
@@ -512,7 +492,6 @@ class BorrowingView(ctk.CTkFrame):
             canvas_height = 400 + (len(tool_names) * 30)
             canvas = Image.new('RGB', (600, canvas_height), 'white')
             draw = ImageDraw.Draw(canvas)
-            
             try:
                 font_title = ImageFont.truetype("arialbd.ttf", 24)
                 font_body = ImageFont.truetype("arial.ttf", 20)
@@ -543,30 +522,8 @@ class BorrowingView(ctk.CTkFrame):
             file_path = os.path.join(temp_dir, f"Receipt_TRN_Multi.pdf")
             canvas.save(file_path, "PDF", resolution=100.0)
             os.startfile(file_path, "print")
-            
         except Exception as e:
             messagebox.showwarning("Print Warning", f"Transaction saved, but receipt failed to print:\n{e}", parent=self.winfo_toplevel())
-
-    # ==========================================
-    # LOGIC: DUAL-AUTH & RECEIPT RETURN PROCEDURE
-    # ==========================================
-    def verify_return_employee(self):
-        emp_id = self.r_emp_id.get().strip()
-        if not emp_id: return
-        conn = get_connection()
-        if not conn: return
-        try:
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT user_id, full_name, role FROM user WHERE employee_id = %s", (emp_id,))
-            user = cursor.fetchone()
-            if user:
-                self.active_return_user_id = user['user_id']
-                self.r_user_name.configure(text=f"✓ Verified: {user['full_name']} ({user['role']})", text_color="#2ECC71")
-            else:
-                self.active_return_user_id = None
-                self.r_user_name.configure(text="❌ Employee ID not found.", text_color="#D8000C")
-        finally:
-            if conn.is_connected(): cursor.close(); conn.close()
 
     def verify_tool_for_return(self):
         if not self.active_return_user_id:
@@ -609,29 +566,24 @@ class BorrowingView(ctk.CTkFrame):
                 self.active_return_tool_id = record['tool_id']
                 self.max_returnable = record['active_borrows']
                 self.r_record_info.configure(text=f"✓ Tool Identified: {record['name']}\nCurrently Deployed Out: {record['active_borrows']}", text_color="#2ECC71")
-                self.r_qty.delete(0, 'end')
-                self.r_qty.insert(0, "1")
+                self.r_qty.delete(0, 'end'); self.r_qty.insert(0, "1")
             else:
-                self.active_return_tool_id = None
-                self.max_returnable = 0
+                self.active_return_tool_id = None; self.max_returnable = 0
                 self.r_record_info.configure(text="❌ No active records found.", text_color="#D8000C")
         finally:
             if conn.is_connected(): cursor.close(); conn.close()
 
     def execute_return(self):
         if not self.active_return_tool_id or not self.active_return_user_id:
-            messagebox.showerror("Error", "Please scan and verify both Employee ID and Tag ID/TRN.", parent=self.winfo_toplevel())
-            return
+            return messagebox.showerror("Error", "Please scan and verify both Employee ID and Tag ID/TRN.", parent=self.winfo_toplevel())
         try:
             return_qty = int(self.r_qty.get().strip())
             if return_qty <= 0: raise ValueError
         except ValueError:
-            messagebox.showerror("Error", "Quantity must be a positive whole number.", parent=self.winfo_toplevel())
-            return
+            return messagebox.showerror("Error", "Quantity must be a positive whole number.", parent=self.winfo_toplevel())
             
         if return_qty > self.max_returnable:
-            messagebox.showerror("Error", f"Cannot retrieve {return_qty}. You only have {self.max_returnable} deployed.", parent=self.winfo_toplevel())
-            return
+            return messagebox.showerror("Error", f"Cannot retrieve {return_qty}. You only have {self.max_returnable} deployed.", parent=self.winfo_toplevel())
 
         new_cond = self.r_condition.get()
         conn = get_connection()

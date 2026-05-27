@@ -74,6 +74,7 @@ class DashboardApp(ctk.CTkToplevel):
 
         is_admin = self.user_info.get("role", "Staff") == "Admin"
 
+        # FIX: Tinanggal ang "Reports" dito sa public view
         nav_items = [
             "Dashboard",
             "Project Management",
@@ -81,10 +82,12 @@ class DashboardApp(ctk.CTkToplevel):
             "Tagging",
             "Issuance & Retrieval",
             "Tracking & Accountability",
-            "Reports",
         ]
+        
+        # FIX: Nilipat ang "Reports" dito para Admin lang ang makakita
         if is_admin:
-            nav_items += ["Maintenance", "Role Management"]
+            nav_items += ["Reports", "Maintenance", "Role Management"]
+            
         nav_items.append("Help")
 
         self.nav_buttons = {}
@@ -93,7 +96,6 @@ class DashboardApp(ctk.CTkToplevel):
                 self.sidebar_frame, text=item, anchor="w",
                 fg_color="transparent", hover_color="#2A6038",
                 text_color="white", font=("Inter", 13, "bold"),
-                
                 command=lambda m=item: self.show_frame(m)
             )
             btn.pack(fill="x", pady=2, padx=10)
@@ -103,7 +105,6 @@ class DashboardApp(ctk.CTkToplevel):
             self.sidebar_frame, text="Exit", anchor="w",
             fg_color="transparent", hover_color="#8B0000",
             text_color="white", font=("Inter", 13, "bold"),
-            
             command=self.confirm_logout
         ).pack(side="bottom", fill="x", pady=20, padx=10)
 
@@ -202,7 +203,6 @@ class DashboardApp(ctk.CTkToplevel):
         if self.current_frame is not None:
             self.current_frame.destroy()
 
-        # Log module navigation (except Dashboard switch to avoid noise)
         uid = self.user_info.get("user_id")
         if uid and page_name != "Dashboard":
             log_action(uid, "Viewed", page_name, f"Navigated to {page_name}")
@@ -247,65 +247,46 @@ class DashboardApp(ctk.CTkToplevel):
 
         try:
             cursor = conn.cursor(dictionary=True)
+            # ... (keep your existing metrics logic here) ...
             cursor.execute("SELECT COUNT(*) as cnt FROM tool WHERE is_archived = 0")
             metrics["total_types"] = cursor.fetchone()["cnt"] or 0
 
+            # In dashboard.py, inside get_live_metrics:
             cursor.execute("""
-                SELECT SUM(quantity_available) as avail,
-                       SUM(quantity_total - quantity_available) as borrowed
-                FROM inventory i JOIN tool t ON i.tool_id = t.tool_id
-                WHERE t.is_archived = 0
-            """)
-            inv = cursor.fetchone()
-            if inv:
-                metrics["available_qty"] = int(inv["avail"] or 0)
-                metrics["borrowed_qty"] = int(inv["borrowed"] or 0)
+    SELECT ts, action, item, actor FROM (
+        -- Select flagged requests AND solved requests
+        SELECT
+            DATE_FORMAT(DATE_ADD(sl.timestamp, INTERVAL 8 HOUR), '%Y-%m-%d %I:%M %p') as ts,
+            sl.action_type as action,
+            IFNULL(sl.module, '—') as item,
+            IFNULL(u.full_name, 'System') as actor
+        FROM system_logs sl
+        LEFT JOIN user u ON sl.user_id = u.user_id
+        WHERE sl.action_type IN ('Flagged', 'Solved') -- Ensure both are tracked
 
-            cursor.execute("SELECT COUNT(*) as cnt FROM user")
-            metrics["employees"] = cursor.fetchone()["cnt"] or 0
+        UNION ALL
 
-            # UPDATED: Recent Activity now pulls from system_logs (all activities)
-            # with fallback to transaction table for borrow/return events
-            cursor.execute("""
-                SELECT ts, action, item, actor FROM (
-                    -- System-wide activity log (logins, edits, projects, etc.)
-                    SELECT
-                        DATE_FORMAT(DATE_ADD(sl.timestamp, INTERVAL 8 HOUR),
-                            '%Y-%m-%d %I:%M %p') as ts,
-                        sl.action_type as action,
-                        IFNULL(sl.module, '—') as item,
-                        IFNULL(u.full_name, 'System') as actor
-                    FROM system_logs sl
-                    LEFT JOIN user u ON sl.user_id = u.user_id
-
-                    UNION ALL
-
-                    -- Borrow/return transactions not yet in system_logs
-                    SELECT
-                        DATE_FORMAT(DATE_ADD(tr.borrow_date, INTERVAL 8 HOUR),
-                            '%Y-%m-%d %I:%M %p') as ts,
-                        tr.type as action,
-                        t.name as item,
-                        u.full_name as actor
-                    FROM transaction tr
-                    JOIN tool t ON tr.tool_id = t.tool_id
-                    JOIN user u ON tr.user_id = u.user_id
-                ) combined
-                ORDER BY ts DESC
-                LIMIT 8
+        SELECT
+            DATE_FORMAT(DATE_ADD(tr.borrow_date, INTERVAL 8 HOUR), '%Y-%m-%d %I:%M %p') as ts,
+            tr.type as action,
+            t.name as item,
+            u.full_name as actor
+        FROM transaction tr
+        JOIN tool t ON tr.tool_id = t.tool_id
+        JOIN user u ON tr.user_id = u.user_id
+            ) combined
+         ORDER BY (action = 'Flagged') DESC, ts DESC
+              LIMIT 8
             """)
             for row in cursor.fetchall():
                 activities.append((row["ts"], row["action"], row["item"], row["actor"]))
-
-            cursor.execute("""
-                SELECT `condition`, COUNT(*) as cnt FROM tool
-                WHERE is_archived = 0 GROUP BY `condition`
-            """)
+            
+            # ... (keep your existing chart_data logic here) ...
+            cursor.execute("SELECT `condition`, COUNT(*) as cnt FROM tool WHERE is_archived = 0 GROUP BY `condition`")
             cond_map = {"Good": 0, "Needs Repair": 1, "Damaged": 2, "Lost": 3}
             for row in cursor.fetchall():
                 c = row["condition"]
-                if c in cond_map:
-                    chart_data[cond_map[c]] = row["cnt"]
+                if c in cond_map: chart_data[cond_map[c]] = row["cnt"]
 
         except Exception as e:
             print(f"Dashboard Sync Error: {e}")
@@ -354,7 +335,6 @@ class DashboardApp(ctk.CTkToplevel):
         bottom_frame.grid_columnconfigure(1, weight=1)
         bottom_frame.grid_rowconfigure(0, weight=1)
 
-        # Recent Activity — now shows all system events including project actions
         activity_card = ctk.CTkFrame(bottom_frame, fg_color="white", corner_radius=10)
         activity_card.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=10)
         ctk.CTkLabel(activity_card, text="Recent Activity",
@@ -387,6 +367,8 @@ class DashboardApp(ctk.CTkToplevel):
         ctk.CTkLabel(analytics_card, text="Tool Condition Metrics",
                      font=("Inter", 14, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(20, 5))
         self.embed_chart(analytics_card, chart_data)
+        row_frame = ctk.CTkFrame(activity_card, fg_color="#F9FAFB" if i % 2 == 0 else "white", height=35)
+             
 
         return frame
 
