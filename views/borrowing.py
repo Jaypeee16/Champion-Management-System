@@ -13,160 +13,166 @@ class BorrowingView(ctk.CTkFrame):
         
         self.user_info = user_info or {}
         
-        self.grid_columnconfigure(0, weight=2)
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(0, weight=0)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1) 
+        self.grid_rowconfigure(0, weight=0) # Top Bar
+        self.grid_rowconfigure(1, weight=1) # Content Area
 
         self.active_borrow_user_id = None
         self.active_borrow_user_name = None
         self.borrow_cart = [] 
         self.current_project_reqs = [] 
+        self.active_projects_map = {}
         
         self.active_return_user_id = None
         self.active_return_tool_id = None
         self.max_returnable = 0
 
         self.build_top_tabs()
-        self.build_history_table()
-        self.load_transaction_history()
 
     def build_top_tabs(self):
         top_bar = ctk.CTkFrame(self, fg_color="transparent")
-        top_bar.grid(row=0, column=0, columnspan=2, sticky="ew", padx=20, pady=(10, 15))
+        top_bar.grid(row=0, column=0, sticky="ew", padx=20, pady=(10, 15))
+
+        ctk.CTkLabel(top_bar, text="Tool Management", font=("Inter", 16, "bold"), text_color="#1E4528").pack(side="left")
 
         tabs = ["📤 Tool Issuance", "📥 Tool Retrieval"]
         self.tab_var = ctk.StringVar(value=tabs[0])
         
-        ctk.CTkLabel(top_bar, text="Tool Management", font=("Inter", 14, "bold"), text_color="#1E4528").pack(side="left", padx=(0, 20))
-        
+        # FIX: Naka-align na sa right side ang switch tab button
         self.seg_btn = ctk.CTkSegmentedButton(
             top_bar, values=tabs, variable=self.tab_var, command=self.switch_tab,
             fg_color="#F0F0F0", selected_color="#1E4528", selected_hover_color="#14301C"
         )
-        self.seg_btn.pack(side="left")
+        self.seg_btn.pack(side="right")
 
-        # STICKY CONTENT AREA: It scrolls, but the tabs above it stay frozen!
-        self.tab_content = ctk.CTkScrollableFrame(self, fg_color="white", corner_radius=10)
-        self.tab_content.grid(row=1, column=0, sticky="nsew", padx=(20, 10), pady=(0, 20))
-        self.tab_content.grid_columnconfigure(0, weight=1)  
+        self.tab_content = ctk.CTkFrame(self, fg_color="transparent")
+        self.tab_content.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 20))
+        self.tab_content.grid_columnconfigure(0, weight=1, minsize=380) # Left Form
+        self.tab_content.grid_columnconfigure(1, weight=2, minsize=600) # Right History Table
+        self.tab_content.grid_rowconfigure(0, weight=1)
         
         self.switch_tab(tabs[0])
 
     def switch_tab(self, selected_tab):
         for widget in self.tab_content.winfo_children(): widget.destroy()
+        
         if selected_tab == "📤 Tool Issuance":
             self.build_issuance_tab(self.tab_content)
-            # FIX: Auto-focus Employee ID input
             self.b_emp_id.focus_set()
         else:
             self.build_retrieval_tab(self.tab_content)
-            # FIX: Auto-focus Return ID input
             self.r_emp_id.focus_set()
+            
+        self.build_history_table(self.tab_content)
+        self.load_transaction_history()
 
-    def build_issuance_tab(self, parent_tab):
-        ctk.CTkLabel(parent_tab, text="Project Tool Deployment", font=("Inter", 14, "bold"), text_color="#1E4528").pack(anchor="w", padx=20, pady=(15, 5))
-        ctk.CTkLabel(parent_tab, text="1. Scan ID  →  2. Select Project  →  3. Scan Required Tools", font=("Inter", 10), text_color="#999999").pack(anchor="w", padx=20, pady=(0, 20))
+    # --- SIDE-BY-SIDE UI BUILDERS ---
+    
+    def build_issuance_tab(self, parent):
+        form_card = ctk.CTkScrollableFrame(parent, fg_color="white", corner_radius=10, width=380)
+        form_card.grid(row=0, column=0, sticky="nsew", padx=(10, 5))
 
-        # --- STEP 1: BORROWER ---
-        ctk.CTkLabel(parent_tab, text="1. Assignee ID (Employee ID)", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(0, 8))
-        b_emp_row = ctk.CTkFrame(parent_tab, fg_color="transparent")
-        b_emp_row.pack(fill="x", padx=20, pady=(0, 8))
+        ctk.CTkLabel(form_card, text="Project Tool Deployment", font=("Inter", 16, "bold"), text_color="#1E4528").pack(anchor="w", padx=20, pady=(20, 5))
+        ctk.CTkLabel(form_card, text="1. Scan ID  ➔  2. Select Project  ➔  3. Scan Required Tools", font=("Inter", 11), text_color="gray").pack(anchor="w", padx=20, pady=(0, 15))
+
+        ctk.CTkLabel(form_card, text="1. Assignee ID (Employee ID)", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        b_emp_row = ctk.CTkFrame(form_card, fg_color="transparent")
+        b_emp_row.pack(fill="x", padx=20, pady=(5, 5))
         self.b_emp_id = ctk.CTkEntry(b_emp_row, placeholder_text="Scan ID & Press Enter...")
-        self.b_emp_id.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.b_emp_id.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.b_emp_id.bind("<Return>", lambda e: self.verify_borrower())
-        ctk.CTkButton(b_emp_row, text="📷 Scan", width=60, fg_color="#3498DB", hover_color="#2980B9", command=lambda: self.open_scanner(self.b_emp_id, self.verify_borrower)).pack(side="left")
+        ctk.CTkButton(b_emp_row, text="📷 Scan", width=65, fg_color="#3498DB", hover_color="#2980B9", font=("Inter", 11, "bold"), command=lambda: self.open_scanner(self.b_emp_id, self.verify_borrower)).pack(side="left")
         
-        self.b_user_name = ctk.CTkLabel(parent_tab, text="Name: Pending Scan...", font=("Inter", 11), text_color="#999999")
-        self.b_user_name.pack(anchor="w", padx=20, pady=(0, 20))
+        self.b_user_name = ctk.CTkLabel(form_card, text="Name: Pending Scan...", font=("Inter", 11), text_color="gray")
+        self.b_user_name.pack(anchor="w", padx=20, pady=(0, 15))
 
-        # --- STEP 2: PROJECT SELECTION ---
-        ctk.CTkLabel(parent_tab, text="2. Select Target Project", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(0, 8))
-        self.b_project_menu = ctk.CTkOptionMenu(parent_tab, values=["Scan Employee ID first..."], fg_color="#F9FAFB", text_color="black", state="disabled", command=self.on_project_selected)
-        self.b_project_menu.pack(fill="x", padx=20, pady=(0, 12))
-        self.active_projects_map = {}
+        ctk.CTkLabel(form_card, text="2. Select Target Project", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        self.b_project_menu = ctk.CTkOptionMenu(form_card, values=["Scan Employee ID first..."], fg_color="#F9FAFB", text_color="black", state="disabled", command=self.on_project_selected)
+        self.b_project_menu.pack(fill="x", padx=20, pady=(5, 5))
 
-        self.proj_req_frame = ctk.CTkFrame(parent_tab, fg_color="#FFF8F0", corner_radius=5, border_width=1, border_color="#E0E0E0")
-        self.proj_req_frame.pack(fill="x", padx=20, pady=(0, 20))
-        ctk.CTkLabel(self.proj_req_frame, text="Project Requirements will appear here...", font=("Inter", 10, "italic"), text_color="#999999").pack(pady=12, padx=10)
+        self.proj_req_frame = ctk.CTkFrame(form_card, fg_color="#FFF8F0", corner_radius=5, border_width=1, border_color="#E0E0E0")
+        self.proj_req_frame.pack(fill="x", padx=20, pady=(5, 15))
+        ctk.CTkLabel(self.proj_req_frame, text="Project Requirements will appear here...", font=("Inter", 11, "italic"), text_color="gray").pack(pady=10)
 
-        # --- STEP 3: ADD TO CART ---
-        ctk.CTkLabel(parent_tab, text="3. Scan Required Tools", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(0, 8))
-        b_tag_row = ctk.CTkFrame(parent_tab, fg_color="transparent")
-        b_tag_row.pack(fill="x", padx=20, pady=(0, 12))
+        ctk.CTkLabel(form_card, text="3. Scan Required Tools", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        b_tag_row = ctk.CTkFrame(form_card, fg_color="transparent")
+        b_tag_row.pack(fill="x", padx=20, pady=(5, 5))
         self.b_tag_id = ctk.CTkEntry(b_tag_row, placeholder_text="Scan Tool Tag & Press Enter...", state="disabled") 
-        self.b_tag_id.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.b_tag_id.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.b_tag_id.bind("<Return>", lambda e: self.add_tool_to_cart())
-        self.b_scan_btn = ctk.CTkButton(b_tag_row, text="📷 Scan", width=60, fg_color="#3498DB", hover_color="#2980B9", command=lambda: self.open_scanner(self.b_tag_id, self.add_tool_to_cart), state="disabled")
+        self.b_scan_btn = ctk.CTkButton(b_tag_row, text="📷 Scan", width=65, fg_color="#3498DB", hover_color="#2980B9", font=("Inter", 11, "bold"), command=lambda: self.open_scanner(self.b_tag_id, self.add_tool_to_cart), state="disabled")
         self.b_scan_btn.pack(side="left")
 
-        self.cart_frame = ctk.CTkScrollableFrame(parent_tab, fg_color="#F9FAFB", height=100, corner_radius=5)
-        self.cart_frame.pack(fill="x", padx=20, pady=(0, 16))
+        self.cart_frame = ctk.CTkScrollableFrame(form_card, fg_color="#F9FAFB", height=120, corner_radius=5)
+        self.cart_frame.pack(fill="x", padx=20, pady=(10, 20))
         self.refresh_cart_ui() 
 
-        ctk.CTkButton(parent_tab, text="Issue Tools & Print Receipt", height=40, fg_color="#1E4528", hover_color="#14301C", font=("Inter", 13, "bold"), command=self.execute_borrow).pack(fill="x", padx=20, pady=(0, 15))
+        ctk.CTkButton(form_card, text="Issue Tools & Print Receipt", height=40, fg_color="#1E4528", hover_color="#14301C", font=("Inter", 13, "bold"), command=self.execute_borrow).pack(fill="x", padx=20, pady=(0, 20))
 
-    def build_retrieval_tab(self, parent_tab):
-        ctk.CTkLabel(parent_tab, text="Secure Tool Retrieval", font=("Inter", 14, "bold"), text_color="#F1C40F").pack(anchor="w", padx=20, pady=(15, 5))
-        ctk.CTkLabel(parent_tab, text="Scan Employee ID and Tool Tag (or enter TRN) to restock items.", font=("Inter", 10), text_color="#999999").pack(anchor="w", padx=20, pady=(0, 20))
+    def build_retrieval_tab(self, parent):
+        form_card = ctk.CTkScrollableFrame(parent, fg_color="white", corner_radius=10, width=380)
+        form_card.grid(row=0, column=0, sticky="nsew", padx=(10, 5))
 
-        ctk.CTkLabel(parent_tab, text="1. Surrendering Employee ID", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(0, 8))
-        r_emp_row = ctk.CTkFrame(parent_tab, fg_color="transparent")
-        r_emp_row.pack(fill="x", padx=20, pady=(0, 8))
+        ctk.CTkLabel(form_card, text="Secure Tool Retrieval", font=("Inter", 16, "bold"), text_color="#F1C40F").pack(anchor="w", padx=20, pady=(20, 5))
+        ctk.CTkLabel(form_card, text="Scan Employee ID and Tool Tag (or enter TRN) to restock.", font=("Inter", 11), text_color="gray").pack(anchor="w", padx=20, pady=(0, 15))
+
+        ctk.CTkLabel(form_card, text="1. Surrendering Employee ID", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        r_emp_row = ctk.CTkFrame(form_card, fg_color="transparent")
+        r_emp_row.pack(fill="x", padx=20, pady=(5, 5))
         self.r_emp_id = ctk.CTkEntry(r_emp_row, placeholder_text="Scan ID & Press Enter...")
-        self.r_emp_id.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.r_emp_id.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.r_emp_id.bind("<Return>", lambda e: self.verify_return_employee())
-        ctk.CTkButton(r_emp_row, text="📷 Scan", width=60, fg_color="#3498DB", hover_color="#2980B9", command=lambda: self.open_scanner(self.r_emp_id, self.verify_return_employee)).pack(side="left")
+        ctk.CTkButton(r_emp_row, text="📷 Scan", width=65, fg_color="#3498DB", hover_color="#2980B9", font=("Inter", 11, "bold"), command=lambda: self.open_scanner(self.r_emp_id, self.verify_return_employee)).pack(side="left")
 
-        self.r_user_name = ctk.CTkLabel(parent_tab, text="Name: Pending Scan...", font=("Inter", 11), text_color="#999999")
-        self.r_user_name.pack(anchor="w", padx=20, pady=(0, 20))
+        self.r_user_name = ctk.CTkLabel(form_card, text="Name: Pending Scan...", font=("Inter", 11), text_color="gray")
+        self.r_user_name.pack(anchor="w", padx=20, pady=(0, 15))
 
-        ctk.CTkLabel(parent_tab, text="2. Tag ID or Receipt TRN (e.g., TRN-42)", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(0, 8))
-        r_tag_row = ctk.CTkFrame(parent_tab, fg_color="transparent")
-        r_tag_row.pack(fill="x", padx=20, pady=(0, 8))
+        ctk.CTkLabel(form_card, text="2. Tag ID or Receipt TRN (e.g., TRN-42)", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        r_tag_row = ctk.CTkFrame(form_card, fg_color="transparent")
+        r_tag_row.pack(fill="x", padx=20, pady=(5, 5))
         self.r_tag_id = ctk.CTkEntry(r_tag_row, placeholder_text="Scan Tag or enter TRN...")
-        self.r_tag_id.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.r_tag_id.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.r_tag_id.bind("<Return>", lambda e: self.verify_tool_for_return())
-        ctk.CTkButton(r_tag_row, text="📷 Scan", width=60, fg_color="#3498DB", hover_color="#2980B9", command=lambda: self.open_scanner(self.r_tag_id, self.verify_tool_for_return)).pack(side="left")
+        ctk.CTkButton(r_tag_row, text="📷 Scan", width=65, fg_color="#3498DB", hover_color="#2980B9", font=("Inter", 11, "bold"), command=lambda: self.open_scanner(self.r_tag_id, self.verify_tool_for_return)).pack(side="left")
 
-        self.r_record_info = ctk.CTkLabel(parent_tab, text="Record: Pending Scan...", font=("Inter", 11), text_color="#999999", justify="left")
-        self.r_record_info.pack(anchor="w", padx=20, pady=(0, 20))
+        self.r_record_info = ctk.CTkLabel(form_card, text="Record: Pending Scan...", font=("Inter", 11), text_color="gray", justify="left")
+        self.r_record_info.pack(anchor="w", padx=20, pady=(0, 15))
 
-        cond_qty_row = ctk.CTkFrame(parent_tab, fg_color="transparent")
-        cond_qty_row.pack(fill="x", padx=20, pady=(0, 16))
+        cond_qty_row = ctk.CTkFrame(form_card, fg_color="transparent")
+        cond_qty_row.pack(fill="x", padx=20, pady=(5, 20))
         cond_qty_row.grid_columnconfigure(0, weight=2)
         cond_qty_row.grid_columnconfigure(1, weight=1)
 
         c_frame = ctk.CTkFrame(cond_qty_row, fg_color="transparent")
-        c_frame.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        ctk.CTkLabel(c_frame, text="3. Return Condition", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", pady=(0, 8))
+        c_frame.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+        ctk.CTkLabel(c_frame, text="3. Return Condition", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w")
         self.r_condition = ctk.CTkOptionMenu(c_frame, values=["Good", "Needs Repair", "Damaged", "Lost"], fg_color="#F9FAFB", text_color="black")
-        self.r_condition.pack(fill="x")
+        self.r_condition.pack(fill="x", pady=(5, 0))
 
         q_frame = ctk.CTkFrame(cond_qty_row, fg_color="transparent")
-        q_frame.grid(row=0, column=1, sticky="ew", padx=(8, 0))
-        ctk.CTkLabel(q_frame, text="Qty", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", pady=(0, 8))
+        q_frame.grid(row=0, column=1, sticky="ew", padx=(5, 0))
+        ctk.CTkLabel(q_frame, text="Qty", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w")
         self.r_qty = ctk.CTkEntry(q_frame, placeholder_text="1")
-        self.r_qty.pack(fill="x")
+        self.r_qty.pack(fill="x", pady=(5, 0))
         self.r_qty.insert(0, "1")
 
-        ctk.CTkButton(parent_tab, text="Confirm Retrieval & Restock", height=40, fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", font=("Inter", 13, "bold"), command=self.execute_return).pack(fill="x", padx=20, pady=(0, 15))
+        ctk.CTkButton(form_card, text="Confirm Retrieval & Restock", height=40, fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", font=("Inter", 13, "bold"), command=self.execute_return).pack(fill="x", padx=20, pady=(0, 20))
 
-    def build_history_table(self):
-        history_card = ctk.CTkFrame(self, fg_color="white", corner_radius=10)
-        history_card.grid(row=1, column=1, sticky="nsew", padx=(10, 20), pady=(0, 20))
+    def build_history_table(self, parent):
+        table_card = ctk.CTkFrame(parent, fg_color="white", corner_radius=10)
+        table_card.grid(row=0, column=1, sticky="nsew", padx=(5, 10))
         
-        top_bar = ctk.CTkFrame(history_card, fg_color="transparent")
-        top_bar.pack(fill="x", padx=20, pady=(15, 12))
+        top_bar = ctk.CTkFrame(table_card, fg_color="transparent")
+        top_bar.pack(fill="x", padx=20, pady=(20, 10))
         
-        ctk.CTkLabel(top_bar, text="Recent Deployment History", font=("Inter", 13, "bold"), text_color="#1A1A1A").pack(side="left")
+        ctk.CTkLabel(top_bar, text="Deployment History", font=("Inter", 16, "bold"), text_color="#1A1A1A").pack(side="left")
         
-        self.search_entry = ctk.CTkEntry(top_bar, placeholder_text="Search Name or Tag...", width=150)
+        self.search_entry = ctk.CTkEntry(top_bar, placeholder_text="Search Name or Tag...", width=200)
         self.search_entry.pack(side="right", padx=(10, 0))
         self.search_entry.bind("<Return>", lambda e: self.load_transaction_history())
-        ctk.CTkButton(top_bar, text="Search", width=60, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=self.load_transaction_history).pack(side="right")
+        ctk.CTkButton(top_bar, text="Search", width=70, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 11, "bold"), command=self.load_transaction_history).pack(side="right")
 
-        header_frame = ctk.CTkFrame(history_card, fg_color="#1E4528", corner_radius=5, height=30)
+        header_frame = ctk.CTkFrame(table_card, fg_color="#1E4528", corner_radius=5, height=40)
         header_frame.pack(fill="x", padx=(20, 36))
         header_frame.pack_propagate(False)
 
@@ -175,10 +181,53 @@ class BorrowingView(ctk.CTkFrame):
 
         for col, (text, weight) in enumerate(zip(self.headers, self.weights)):
             header_frame.grid_columnconfigure(col, weight=weight)
-            ctk.CTkLabel(header_frame, text=text, font=("Inter", 11, "bold"), text_color="white").grid(row=0, column=col, padx=10, pady=5, sticky="w")
+            ctk.CTkLabel(header_frame, text=text, font=("Inter", 11, "bold"), text_color="white").grid(row=0, column=col, padx=10, pady=10, sticky="w")
 
-        self.data_scroll = ctk.CTkScrollableFrame(history_card, fg_color="transparent")
-        self.data_scroll.pack(fill="both", expand=True, padx=20, pady=(5, 15))
+        self.data_scroll = ctk.CTkScrollableFrame(table_card, fg_color="transparent")
+        self.data_scroll.pack(fill="both", expand=True, padx=20, pady=(10, 20))
+
+    # --- LOGIC & DATABASE METHODS ---
+
+    def load_transaction_history(self):
+        for widget in self.data_scroll.winfo_children(): widget.destroy()
+        search_q = self.search_entry.get().strip()
+        conn = get_connection()
+        if not conn: return
+        try:
+            cursor = conn.cursor(dictionary=True)
+            query = """
+                SELECT tr.type, t.name as tool_name, t.tag_id, COUNT(tr.transaction_id) as grouped_qty,
+                       u.full_name, tr.status,
+                       DATE_FORMAT(DATE_ADD(MAX(IF(tr.type='Retrieval', tr.return_date, tr.borrow_date)), INTERVAL 8 HOUR), '%b %d, %Y %h:%i %p') as b_date
+                FROM transaction tr
+                JOIN tool t ON tr.tool_id = t.tool_id
+                JOIN user u ON tr.user_id = u.user_id
+            """
+            if search_q:
+                query += " WHERE u.full_name LIKE %s OR t.tag_id LIKE %s OR t.name LIKE %s"
+                query += " GROUP BY tr.type, t.name, t.tag_id, u.full_name, tr.status ORDER BY MAX(IF(tr.type='Retrieval', tr.return_date, tr.borrow_date)) DESC LIMIT 50"
+                cursor.execute(query, (f"%{search_q}%", f"%{search_q}%", f"%{search_q}%"))
+            else:
+                query += " GROUP BY tr.type, t.name, t.tag_id, u.full_name, tr.status ORDER BY MAX(IF(tr.type='Retrieval', tr.return_date, tr.borrow_date)) DESC LIMIT 50"
+                cursor.execute(query)
+                
+            results = cursor.fetchall()
+            if not results:
+                ctk.CTkLabel(self.data_scroll, text="No transactions found.", text_color="gray").pack(pady=20)
+                return
+
+            for i, row in enumerate(results):
+                display_data = [row['type'], row['tool_name'], row['tag_id'] if row['tag_id'] else "Unassigned", str(row['grouped_qty']), row['full_name'], row['b_date'], row['status']]
+                row_frame = ctk.CTkFrame(self.data_scroll, fg_color="#F9FAFB" if i % 2 == 0 else "white", height=40)
+                row_frame.pack(fill="x", pady=2)
+                row_frame.pack_propagate(False)
+                
+                for col, (text, weight) in enumerate(zip(display_data, self.weights)):
+                    row_frame.grid_columnconfigure(col, weight=weight)
+                    txt_color = "#D8000C" if col == 6 and text == "Active" else ("#2ECC71" if col == 6 else "#1A1A1A")
+                    ctk.CTkLabel(row_frame, text=text, font=("Inter", 11), text_color=txt_color).grid(row=0, column=col, padx=10, pady=10, sticky="w")
+        finally:
+            if conn.is_connected(): cursor.close(); conn.close()
 
     def open_scanner(self, target_entry, trigger_method):
         try: cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
@@ -200,9 +249,7 @@ class BorrowingView(ctk.CTkFrame):
             cv2.putText(frame, "Align QR Code inside box", (top_left[0], top_left[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             cv2.putText(frame, "Press 'Q' to Cancel", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
             
-            roi = frame[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]]
-            gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-            detected_codes = decode(gray_roi, symbols=[ZBarSymbol.QRCODE])
+            detected_codes = decode(frame, symbols=[ZBarSymbol.QRCODE])
             for barcode in detected_codes:
                 raw_data = barcode.data.decode('utf-8')
                 if "Tag ID:" in raw_data:
@@ -210,10 +257,10 @@ class BorrowingView(ctk.CTkFrame):
                     detected_data = first_line.replace("Tag ID:", "").strip()
                 else:
                     detected_data = raw_data.strip()
-                break
+                break 
                 
             cv2.imshow('Champion Scanner - Turbo Mode', frame)
-            if detected_data or cv2.waitKey(10) & 0xFF == ord('q'): break
+            if detected_data or cv2.waitKey(1) & 0xFF == ord('q'): break
 
         cap.release()
         cv2.destroyAllWindows()
@@ -273,37 +320,9 @@ class BorrowingView(ctk.CTkFrame):
         finally:
             if conn.is_connected(): cursor.close(); conn.close()
 
-    def verify_return_employee(self):
-        emp_id = self.r_emp_id.get().strip()
-        if not emp_id:
-            return
-
-        conn = get_connection()
-        if not conn:
-            return
-
-        try:
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT user_id, full_name, role FROM user WHERE employee_id = %s", (emp_id,))
-            user = cursor.fetchone()
-
-            if user:
-                self.active_return_user_id = user['user_id']
-                self.r_user_name.configure(text=f"✓ Verified: {user['full_name']} ({user['role']})", text_color="#2ECC71")
-                self.r_record_info.configure(text="Record: Pending Scan...", text_color="#999999")
-                self.active_return_tool_id = None
-                self.max_returnable = 0
-                self.r_tag_id.focus_set()
-            else:
-                self.active_return_user_id = None
-                self.r_user_name.configure(text="❌ Employee ID not found.", text_color="#D8000C")
-                self.r_record_info.configure(text="Record: Pending Scan...", text_color="#999999")
-        finally:
-            if conn.is_connected(): cursor.close(); conn.close()
-
     def _clear_proj_req_display(self):
         for w in self.proj_req_frame.winfo_children(): w.destroy()
-        ctk.CTkLabel(self.proj_req_frame, text="Select a project to see requirements...", font=("Inter", 10, "italic"), text_color="#999999").pack(pady=12, padx=10)
+        ctk.CTkLabel(self.proj_req_frame, text="Select a project to see requirements...", font=("Inter", 11, "italic"), text_color="gray").pack(pady=10)
         self.b_tag_id.configure(state="disabled")
         self.b_scan_btn.configure(state="disabled")
         self.current_project_reqs.clear()
@@ -320,7 +339,6 @@ class BorrowingView(ctk.CTkFrame):
         if not conn: return
         try:
             cursor = conn.cursor(dictionary=True)
-            # FIX: Joined with projects table to get full Project Details (Name, Client, Location)
             cursor.execute("""
                 SELECT pr.tool_id, t.name, pr.quantity as req_qty, pr.status,
                        (SELECT COUNT(*) FROM transaction WHERE project_id = %s AND tool_id = pr.tool_id AND type = 'Issue' AND status = 'Active') as issued_qty,
@@ -336,14 +354,13 @@ class BorrowingView(ctk.CTkFrame):
             
             for w in self.proj_req_frame.winfo_children(): w.destroy()
             
-            # FIX: Displaying the Project Header before listing tools
             if reqs:
                 p_name = reqs[0]['p_name']
                 p_client = reqs[0]['p_client']
                 p_loc = reqs[0]['p_location']
                 header_text = f"📍 Project: {p_name}\n🏢 Client: {p_client}  |  Site: {p_loc}"
-                ctk.CTkLabel(self.proj_req_frame, text=header_text, font=("Inter", 11, "bold"), text_color="#1E4528", justify="left").pack(anchor="w", padx=10, pady=(12, 10))
-                ctk.CTkFrame(self.proj_req_frame, height=1, fg_color="#E0E0E0").pack(fill="x", padx=10, pady=(0, 8))
+                ctk.CTkLabel(self.proj_req_frame, text=header_text, font=("Inter", 11, "bold"), text_color="#1E4528", justify="left").pack(anchor="w", padx=10, pady=(10, 5))
+                ctk.CTkFrame(self.proj_req_frame, height=1, fg_color="#E0E0E0").pack(fill="x", padx=10, pady=(0, 5))
             
             all_fulfilled = True
             for r in reqs:
@@ -355,12 +372,11 @@ class BorrowingView(ctk.CTkFrame):
                 txt_color = "#D8000C" if remaining > 0 else "#2ECC71"
                 status_txt = f"Needs {remaining:g}" if remaining > 0 else "✓ Fulfilled"
                 row_str = f"• {r['name']}  |  Approved: {needed:g}  |  {status_txt}"
-                ctk.CTkLabel(self.proj_req_frame, text=row_str, font=("Inter", 10, "bold" if remaining > 0 else "normal"), text_color=txt_color).pack(anchor="w", padx=10, pady=3)
+                ctk.CTkLabel(self.proj_req_frame, text=row_str, font=("Inter", 11, "bold" if remaining > 0 else "normal"), text_color=txt_color).pack(anchor="w", padx=10, pady=2)
             
             if not all_fulfilled:
                 self.b_tag_id.configure(state="normal")
                 self.b_scan_btn.configure(state="normal")
-                # Auto focus scanner field
                 self.b_tag_id.focus_set()
             else:
                 self.b_tag_id.configure(state="disabled")
@@ -438,10 +454,14 @@ class BorrowingView(ctk.CTkFrame):
             item['qty_borrowed'] = new_qty
             self.refresh_cart_ui()
 
+    def remove_from_cart(self, index):
+        self.borrow_cart.pop(index)
+        self.refresh_cart_ui()
+
     def refresh_cart_ui(self):
         for widget in self.cart_frame.winfo_children(): widget.destroy()
         if len(self.borrow_cart) == 0:
-            ctk.CTkLabel(self.cart_frame, text="Cart is empty. Scan required tools to add.", text_color="#999999", font=("Inter", 10)).pack(pady=10)
+            ctk.CTkLabel(self.cart_frame, text="Cart is empty. Scan required tools to add.", text_color="gray").pack(pady=10)
             return
 
         for i, item in enumerate(self.borrow_cart):
@@ -451,7 +471,7 @@ class BorrowingView(ctk.CTkFrame):
             ctk.CTkLabel(row, text=f"✓ {item['name']}  |  Tag: {item['tag']}", font=("Inter", 11, "bold"), text_color="#1E4528").pack(side="left", padx=10, pady=5)
             ctk.CTkButton(row, text="✕", width=25, height=25, fg_color="#FFEAEA", text_color="#D8000C", hover_color="#FFC0C0", command=lambda idx=i: self.remove_from_cart(idx)).pack(side="right", padx=(5, 10))
             ctk.CTkButton(row, text="+", width=25, height=25, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=lambda idx=i: self.update_cart_qty(idx, 1)).pack(side="right", padx=2)
-            ctk.CTkLabel(row, text=f"Qty: {item['qty_borrowed']}", font=("Inter", 10, "bold"), text_color="black").pack(side="right", padx=8)
+            ctk.CTkLabel(row, text=f"Qty: {item['qty_borrowed']}", font=("Inter", 11, "bold"), text_color="black").pack(side="right", padx=8)
             ctk.CTkButton(row, text="-", width=25, height=25, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=lambda idx=i: self.update_cart_qty(idx, -1)).pack(side="right", padx=2)
 
     def execute_borrow(self):
@@ -552,22 +572,12 @@ class BorrowingView(ctk.CTkFrame):
 
             import tempfile
             temp_dir = tempfile.gettempdir()
-            file_path = os.path.join(temp_dir, f"Receipt_TRN_Multi.pdf")
+            file_path = os.path.join(temp_dir, f"Receipt.pdf")
             canvas.save(file_path, "PDF", resolution=100.0)
-            try:
-                os.startfile(file_path)
-            except Exception:
-                messagebox.showinfo(
-                    "Receipt Generated",
-                    f"Receipt saved to: {file_path}\nPlease open and print it from your PDF viewer.",
-                    parent=self.winfo_toplevel()
-                )
+            os.startfile(file_path)
+            messagebox.showinfo("Success", "Receipt generated and opened in your default PDF viewer.", parent=self.winfo_toplevel())
         except Exception as e:
-            messagebox.showerror(
-                "Receipt Error",
-                f"Unable to generate receipt: {e}",
-                parent=self.winfo_toplevel()
-            )
+            messagebox.showwarning("Print Warning", f"Transaction saved, but receipt failed to print:\n{e}", parent=self.winfo_toplevel())
 
     def verify_tool_for_return(self):
         if not self.active_return_user_id:
@@ -617,6 +627,24 @@ class BorrowingView(ctk.CTkFrame):
         finally:
             if conn.is_connected(): cursor.close(); conn.close()
 
+    def verify_return_employee(self):
+        emp_id = self.r_emp_id.get().strip()
+        if not emp_id: return
+        conn = get_connection()
+        if not conn: return
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT user_id, full_name, role FROM user WHERE employee_id = %s", (emp_id,))
+            user = cursor.fetchone()
+            if user:
+                self.active_return_user_id = user['user_id']
+                self.r_user_name.configure(text=f"✓ Verified: {user['full_name']} ({user['role']})", text_color="#2ECC71")
+            else:
+                self.active_return_user_id = None
+                self.r_user_name.configure(text="❌ Employee ID not found.", text_color="#D8000C")
+        finally:
+            if conn.is_connected(): cursor.close(); conn.close()
+
     def execute_return(self):
         if not self.active_return_tool_id or not self.active_return_user_id:
             return messagebox.showerror("Error", "Please scan and verify both Employee ID and Tag ID/TRN.", parent=self.winfo_toplevel())
@@ -658,44 +686,3 @@ class BorrowingView(ctk.CTkFrame):
             self.load_transaction_history()
         finally:
             if conn.is_connected(): cursor.close(); conn.close()
-
-    def load_transaction_history(self):
-        for widget in self.data_scroll.winfo_children(): widget.destroy()
-        search_q = self.search_entry.get().strip()
-        conn = get_connection()
-        if not conn: return
-        try:
-            cursor = conn.cursor(dictionary=True)
-            query = """
-                SELECT tr.type, t.name as tool_name, t.tag_id, COUNT(tr.transaction_id) as grouped_qty,
-                       u.full_name, tr.status,
-                       DATE_FORMAT(DATE_ADD(MAX(tr.borrow_date), INTERVAL 8 HOUR), '%b %d, %Y %h:%i %p') as b_date
-                FROM transaction tr
-                JOIN tool t ON tr.tool_id = t.tool_id
-                JOIN user u ON tr.user_id = u.user_id
-            """
-            if search_q:
-                query += " WHERE u.full_name LIKE %s OR t.tag_id LIKE %s OR t.name LIKE %s"
-                query += " GROUP BY tr.type, t.name, t.tag_id, u.full_name, tr.status, DATE_FORMAT(tr.borrow_date, '%Y-%m-%d %H:%i') ORDER BY MAX(tr.borrow_date) DESC LIMIT 50"
-                cursor.execute(query, (f"%{search_q}%", f"%{search_q}%", f"%{search_q}%"))
-            else:
-                query += " GROUP BY tr.type, t.name, t.tag_id, u.full_name, tr.status, DATE_FORMAT(tr.borrow_date, '%Y-%m-%d %H:%i') ORDER BY MAX(tr.borrow_date) DESC LIMIT 50"
-                cursor.execute(query)
-                
-            results = cursor.fetchall()
-            if not results:
-                ctk.CTkLabel(self.data_scroll, text="No transactions found.", text_color="gray").pack(pady=20)
-                return
-
-            for i, row in enumerate(results):
-                display_data = [row['type'], row['tool_name'], row['tag_id'] if row['tag_id'] else "Unassigned", str(row['grouped_qty']), row['full_name'], row['b_date'], row['status']]
-                row_frame = ctk.CTkFrame(self.data_scroll, fg_color="#F9FAFB" if i % 2 == 0 else "white", height=35)
-                row_frame.pack(fill="x", pady=2)
-                row_frame.pack_propagate(False)
-                
-                for col, (text, weight) in enumerate(zip(display_data, self.weights)):
-                    row_frame.grid_columnconfigure(col, weight=weight)
-                    txt_color = "#D8000C" if col == 6 and text == "Active" else ("#2ECC71" if col == 6 else "#1A1A1A")
-                    ctk.CTkLabel(row_frame, text=text, font=("Inter", 11), text_color=txt_color).grid(row=0, column=col, padx=10, pady=5, sticky="w")
-        finally:
-            if conn.is_connected(): cursor.close(); conn.close()    

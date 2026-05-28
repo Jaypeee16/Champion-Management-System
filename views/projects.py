@@ -29,24 +29,23 @@ class ProjectsView(ctk.CTkFrame):
         if uid:
             log_action(uid, "Viewed", "Projects", "Opened Project Management module")
             
-        # FIX: Global Keyboard Navigation (Auto-focus first entry)
         self.p_name.focus_set()
 
     def build_form_panel(self):
         form_card = ctk.CTkScrollableFrame(self.inner, fg_color="white", corner_radius=10, width=380)
         form_card.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
-        ctk.CTkLabel(form_card, text="Draft Project Plan", font=("Inter", 16, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(20, 5))
+        ctk.CTkLabel(form_card, text="Draft Project Plan", font=("Inter", 16, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(20, 10))
 
         def field(label, ph):
-            ctk.CTkLabel(form_card, text=label, font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+            ctk.CTkLabel(form_card, text=label, font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
             e = ctk.CTkEntry(form_card, placeholder_text=ph, takefocus=True)
             e.pack(fill="x", padx=20, pady=(5, 10))
             return e
 
         self.p_name = field("Project Name *", "e.g., Ayala Alabang Phase 2")
         
-        ctk.CTkLabel(form_card, text="Project Description", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        ctk.CTkLabel(form_card, text="Project Description", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
         self.p_desc = ctk.CTkTextbox(form_card, height=80, fg_color="#F9FAFB", border_width=1, border_color="#E0E0E0")
         self.p_desc.pack(fill="x", padx=20, pady=(5, 10))
 
@@ -54,7 +53,7 @@ class ProjectsView(ctk.CTkFrame):
         self.p_client = field("Client / Company *", "e.g., Makati Dev Corp")
         self.p_location = field("Site Location", "e.g., Block 4, Alabang")
 
-        ctk.CTkLabel(form_card, text="Assigned Workers", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        ctk.CTkLabel(form_card, text="Assigned Workers", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
 
         worker_input_row = ctk.CTkFrame(form_card, fg_color="transparent")
         worker_input_row.pack(fill="x", padx=20, pady=(5, 5))
@@ -63,15 +62,15 @@ class ProjectsView(ctk.CTkFrame):
         self.worker_single_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.worker_single_entry.bind("<Return>", lambda e: self._add_worker_from_entry())
 
-        ctk.CTkButton(worker_input_row, text="+ Add", width=55, height=32, fg_color="#1E4528", hover_color="#14301C", command=self._add_worker_from_entry).pack(side="left", padx=(0, 5))
-        ctk.CTkButton(worker_input_row, text="📷 Scan", width=65, height=32, fg_color="#3498DB", hover_color="#2980B9", command=self.scan_worker).pack(side="left")
+        ctk.CTkButton(worker_input_row, text="+ Add", width=55, height=32, fg_color="#1E4528", hover_color="#14301C", font=("Inter", 11, "bold"), command=self._add_worker_from_entry).pack(side="left", padx=(0, 5))
+        ctk.CTkButton(worker_input_row, text="📷 Scan", width=65, height=32, fg_color="#3498DB", hover_color="#2980B9", font=("Inter", 11, "bold"), command=self.scan_worker).pack(side="left")
 
         self.worker_tags_frame = ctk.CTkScrollableFrame(form_card, fg_color="#F9FAFB", corner_radius=6, height=80)
         self.worker_tags_frame.pack(fill="x", padx=20, pady=(0, 12))
         self.workers_list = []  
         self._refresh_worker_tags()
 
-        ctk.CTkLabel(form_card, text="Tools & Equipment Needed *", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        ctk.CTkLabel(form_card, text="Tools & Equipment Needed *", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
         ctk.CTkButton(form_card, text="🔍 Browse Inventory Catalog", fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", font=("Inter", 12, "bold"), command=self.open_tool_picker).pack(fill="x", padx=20, pady=(5, 10))
 
         cart_bg = ctk.CTkFrame(form_card, fg_color="#F9FAFB", corner_radius=8)
@@ -135,17 +134,17 @@ class ProjectsView(ctk.CTkFrame):
         y = (modal.winfo_screenheight() // 2) - (560 // 2)
         modal.geometry(f"+{x}+{y}")
 
-        ctk.CTkLabel(modal, text="Select Items for Project Requisition", font=("Inter", 18, "bold"), text_color="black").pack(pady=(20, 5))
+        ctk.CTkLabel(modal, text="Select Items for Project Requisition", font=("Inter", 16, "bold"), text_color="black").pack(pady=(20, 5))
         ctk.CTkLabel(modal, text="Search by Name or PID, then set quantity and click + Add.", font=("Inter", 11), text_color="gray").pack(pady=(0, 10))
 
         search_frame = ctk.CTkFrame(modal, fg_color="transparent")
         search_frame.pack(fill="x", padx=20, pady=(0, 5))
 
-        ctk.CTkLabel(search_frame, text="Name:", font=("Inter", 11), text_color="gray").pack(side="left")
+        ctk.CTkLabel(search_frame, text="Name:", font=("Inter", 11, "bold"), text_color="gray").pack(side="left")
         search_name = ctk.CTkEntry(search_frame, placeholder_text="Item name...", width=180, takefocus=True)
         search_name.pack(side="left", padx=(5, 10))
 
-        ctk.CTkLabel(search_frame, text="PID:", font=("Inter", 11), text_color="gray").pack(side="left")
+        ctk.CTkLabel(search_frame, text="PID:", font=("Inter", 11, "bold"), text_color="gray").pack(side="left")
         search_pid = ctk.CTkEntry(search_frame, placeholder_text="Product ID...", width=100, takefocus=True)
         search_pid.pack(side="left", padx=(5, 10))
 
@@ -153,19 +152,19 @@ class ProjectsView(ctk.CTkFrame):
         def do_reset(): search_name.delete(0, 'end'); search_pid.delete(0, 'end'); load_catalog()
 
         ctk.CTkButton(search_frame, text="Search", width=80, fg_color="#1E4528", hover_color="#14301C", font=("Inter", 11, "bold"), command=do_search).pack(side="left", padx=5)
-        ctk.CTkButton(search_frame, text="↻ Reset", width=80, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=do_reset).pack(side="left", padx=5)
+        ctk.CTkButton(search_frame, text="↻ Reset", width=80, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 11, "bold"), command=do_reset).pack(side="left", padx=5)
 
         search_name.bind("<Return>", lambda e: do_search())
         search_pid.bind("<Return>", lambda e: do_search())
 
-        hdr = ctk.CTkFrame(modal, fg_color="#1E4528", height=35, corner_radius=5)
+        hdr = ctk.CTkFrame(modal, fg_color="#1E4528", height=40, corner_radius=5)
         hdr.pack(fill="x", padx=(20, 36))
         hdr.pack_propagate(False)
         weights = [1, 1, 2, 1, 1, 1, 1]
         cols = ["PID", "Type", "Item Name", "UoM", "Avail/Tot", "Req Qty", "Action"]
         for col, (w, text) in enumerate(zip(weights, cols)):
             hdr.grid_columnconfigure(col, weight=w)
-            ctk.CTkLabel(hdr, text=text, font=("Inter", 11, "bold"), text_color="white").grid(row=0, column=col, padx=5, pady=5, sticky="w")
+            ctk.CTkLabel(hdr, text=text, font=("Inter", 11, "bold"), text_color="white").grid(row=0, column=col, padx=5, pady=10, sticky="w")
 
         list_scroll = ctk.CTkScrollableFrame(modal, fg_color="transparent")
         list_scroll.pack(fill="both", expand=True, padx=20, pady=(5, 10))
@@ -216,7 +215,7 @@ class ProjectsView(ctk.CTkFrame):
 
                     qty_entry = ctk.CTkEntry(rf, width=55, height=26, takefocus=True)
                     qty_entry.grid(row=0, column=5, padx=5, pady=8, sticky="w")
-                    ctk.CTkButton(rf, text="+ Add", width=55, height=26, fg_color="#3498DB", hover_color="#2980B9", command=lambda r=row, q_e=qty_entry: self.add_from_catalog(r, q_e, modal)).grid(row=0, column=6, padx=5, pady=8, sticky="w")
+                    ctk.CTkButton(rf, text="+ Add", width=55, height=26, fg_color="#3498DB", hover_color="#2980B9", font=("Inter", 10, "bold"), command=lambda r=row, q_e=qty_entry: self.add_from_catalog(r, q_e, modal)).grid(row=0, column=6, padx=5, pady=8, sticky="w")
 
                 if not list_scroll.winfo_children():
                     ctk.CTkLabel(list_scroll, text="No items found. Try a different search.", text_color="gray").pack(pady=20)
@@ -225,7 +224,7 @@ class ProjectsView(ctk.CTkFrame):
                 if conn.is_connected(): cursor.close(); conn.close()
 
         load_catalog()
-        ctk.CTkButton(modal, text="Done / Close Catalog", height=35, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=modal.destroy).pack(pady=(5, 15))
+        ctk.CTkButton(modal, text="Done / Close Catalog", height=35, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 11, "bold"), command=modal.destroy).pack(pady=(5, 15))
 
     def add_from_catalog(self, row_data, qty_entry, modal):
         try: req_qty = float(qty_entry.get())
@@ -373,14 +372,14 @@ class ProjectsView(ctk.CTkFrame):
         top.pack(fill="x", padx=20, pady=(20, 10))
         ctk.CTkLabel(top, text="Project Deployment Plans", font=("Inter", 16, "bold"), text_color="#1A1A1A").pack(side="left")
 
-        self.proj_search = ctk.CTkEntry(top, placeholder_text="Search project or client...", width=200, takefocus=True)
+        self.proj_search = ctk.CTkEntry(top, placeholder_text="Search project or client...", width=250, takefocus=True)
         self.proj_search.pack(side="right", padx=(5, 0))
         self.proj_search.bind("<Return>", lambda e: self.load_projects(self.proj_search.get().strip()))
         
-        ctk.CTkButton(top, text="Search", width=70, fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", font=("Inter", 11, "bold"), command=lambda: self.load_projects(self.proj_search.get().strip())).pack(side="right", padx=5)
-        ctk.CTkButton(top, text="↻ Reset", width=70, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=lambda: [self.proj_search.delete(0, "end"), self.load_projects()]).pack(side="right")
+        ctk.CTkButton(top, text="Search", width=80, fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", font=("Inter", 11, "bold"), command=lambda: self.load_projects(self.proj_search.get().strip())).pack(side="right", padx=5)
+        ctk.CTkButton(top, text="↻ Reset", width=70, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 11, "bold"), command=lambda: [self.proj_search.delete(0, "end"), self.load_projects()]).pack(side="right")
 
-        hdr = ctk.CTkFrame(table_card, fg_color="#1E4528", corner_radius=5, height=38)
+        hdr = ctk.CTkFrame(table_card, fg_color="#1E4528", corner_radius=5, height=40)
         hdr.pack(fill="x", padx=(20, 36))
         hdr.pack_propagate(False)
 
@@ -389,7 +388,7 @@ class ProjectsView(ctk.CTkFrame):
 
         for col, (h, w) in enumerate(zip(headers, weights)):
             hdr.grid_columnconfigure(col, weight=w)
-            ctk.CTkLabel(hdr, text=h, font=("Inter", 11, "bold"), text_color="white").grid(row=0, column=col, padx=10, pady=8, sticky="w")
+            ctk.CTkLabel(hdr, text=h, font=("Inter", 11, "bold"), text_color="white").grid(row=0, column=col, padx=10, pady=10, sticky="w")
 
         self.project_scroll = ctk.CTkScrollableFrame(table_card, fg_color="transparent")
         self.project_scroll.pack(fill="both", expand=True, padx=20, pady=(5, 20))

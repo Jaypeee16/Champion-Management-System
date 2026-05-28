@@ -8,7 +8,6 @@ class InventoryView(ctk.CTkFrame):
 
         self.user_info = user_info or {}
 
-        # FIX: Changed to a standard CTkFrame so the page background stays static!
         self.scroll_wrapper = ctk.CTkFrame(self, fg_color="transparent")
         self.scroll_wrapper.pack(fill="both", expand=True)
 
@@ -19,14 +18,13 @@ class InventoryView(ctk.CTkFrame):
         self.load_inventory_data()
         self.load_dynamic_dropdowns() 
         
-        # FIX: Global Keyboard Navigation (Auto-focus first entry)
         self.name_entry.focus_set()
 
     def build_left_form(self):
         form_frame = ctk.CTkScrollableFrame(self.scroll_wrapper, fg_color="white", corner_radius=10, width=320)
         form_frame.pack(side="left", fill="y", padx=(0, 10), pady=0)
 
-        ctk.CTkLabel(form_frame, text="Add New Item", font=("Inter", 16, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(20, 5))
+        ctk.CTkLabel(form_frame, text="Add New Item", font=("Inter", 16, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20, pady=(20, 10))
 
         row_type = ctk.CTkFrame(form_frame, fg_color="transparent")
         row_type.pack(fill="x", padx=20, pady=(5, 10))
@@ -35,31 +33,31 @@ class InventoryView(ctk.CTkFrame):
 
         t_frame = ctk.CTkFrame(row_type, fg_color="transparent")
         t_frame.grid(row=0, column=0, sticky="ew", padx=(0, 5))
-        ctk.CTkLabel(t_frame, text="Item Type", font=("Inter", 12, "bold"), text_color="#1E4528").pack(anchor="w")
+        ctk.CTkLabel(t_frame, text="Item Type", font=("Inter", 11, "bold"), text_color="#1E4528").pack(anchor="w")
         self.type_menu = ctk.CTkOptionMenu(t_frame, values=["Equipment", "Consumable"], fg_color="#E8F8F5", text_color="black")
         self.type_menu.pack(fill="x", pady=(5, 0))
 
         uom_frame = ctk.CTkFrame(row_type, fg_color="transparent")
         uom_frame.grid(row=0, column=1, sticky="ew", padx=(5, 0))
-        ctk.CTkLabel(uom_frame, text="Unit (UoM)", font=("Inter", 12, "bold"), text_color="#1E4528").pack(anchor="w")
+        ctk.CTkLabel(uom_frame, text="Unit (UoM)", font=("Inter", 11, "bold"), text_color="#1E4528").pack(anchor="w")
         self.uom_menu = ctk.CTkOptionMenu(uom_frame, values=["pcs", "boxes", "sets", "kg", "rolls", "packs", "liters", "meters", "feet"], fg_color="#E8F8F5", text_color="black")
         self.uom_menu.pack(fill="x", pady=(5, 0))
 
-        ctk.CTkLabel(form_frame, text="💡 Consumables (e.g. boxes of nails) support fractional returns.\n   e.g., return 0.5 if half a box was used.", font=("Inter", 10), text_color="#888888", justify="left", wraplength=270).pack(anchor="w", padx=20, pady=(5, 5))
+        ctk.CTkLabel(form_frame, text="💡 Consumables (e.g. boxes of nails) support fractional returns. (e.g., return 0.5 for half box).", font=("Inter", 10), text_color="gray", justify="left", wraplength=270).pack(anchor="w", padx=20, pady=(0, 10))
 
-        ctk.CTkLabel(form_frame, text="Product Name *", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        ctk.CTkLabel(form_frame, text="Product Name *", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
         self.name_entry = ctk.CTkEntry(form_frame, placeholder_text="e.g., #2 Nails (Box)")
         self.name_entry.pack(fill="x", padx=20, pady=(5, 10))
 
-        ctk.CTkLabel(form_frame, text="Description", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        ctk.CTkLabel(form_frame, text="Description", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
         self.desc_entry = ctk.CTkEntry(form_frame, placeholder_text="Brief details about the item...")
         self.desc_entry.pack(fill="x", padx=20, pady=(5, 10))
 
-        ctk.CTkLabel(form_frame, text="Category", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        ctk.CTkLabel(form_frame, text="Category", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
         self.cat_menu = ctk.CTkComboBox(form_frame, values=["Loading..."], fg_color="#F9FAFB", text_color="black")
         self.cat_menu.pack(fill="x", padx=20, pady=(5, 10))
 
-        ctk.CTkLabel(form_frame, text="Supplier", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        ctk.CTkLabel(form_frame, text="Supplier", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
         self.sup_menu = ctk.CTkComboBox(form_frame, values=["Loading..."], fg_color="#F9FAFB", text_color="black")
         self.sup_menu.pack(fill="x", padx=20, pady=(5, 10))
 
@@ -70,17 +68,17 @@ class InventoryView(ctk.CTkFrame):
 
         p_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
         p_frame.grid(row=0, column=0, sticky="ew", padx=(0, 5))
-        ctk.CTkLabel(p_frame, text="Price", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w")
+        ctk.CTkLabel(p_frame, text="Price", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w")
         self.price_entry = ctk.CTkEntry(p_frame, placeholder_text="0.00")
         self.price_entry.pack(fill="x", pady=(5, 0))
 
         q_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
         q_frame.grid(row=0, column=1, sticky="ew", padx=(5, 0))
-        ctk.CTkLabel(q_frame, text="Quantity", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w")
+        ctk.CTkLabel(q_frame, text="Quantity", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w")
         self.qty_entry = ctk.CTkEntry(q_frame, placeholder_text="0")
         self.qty_entry.pack(fill="x", pady=(5, 0))
 
-        ctk.CTkLabel(form_frame, text="Storage Location", font=("Inter", 12, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
+        ctk.CTkLabel(form_frame, text="Storage Location", font=("Inter", 11, "bold"), text_color="#1A1A1A").pack(anchor="w", padx=20)
         self.loc_entry = ctk.CTkEntry(form_frame, placeholder_text="e.g., Shelf A1")
         self.loc_entry.pack(fill="x", padx=20, pady=(5, 15))
 
@@ -89,7 +87,7 @@ class InventoryView(ctk.CTkFrame):
         btn_row.grid_columnconfigure((0, 1), weight=1)
 
         ctk.CTkButton(btn_row, text="Save Item", fg_color="#1E4528", hover_color="#14301C", font=("Inter", 12, "bold"), command=self.validate_and_save).grid(row=0, column=0, padx=(0, 5), sticky="ew")
-        ctk.CTkButton(btn_row, text="Clear", fg_color="white", text_color="black", border_width=1, border_color="#E0E0E0", hover_color="#F0F0F0", command=self.clear_form).grid(row=0, column=1, padx=(5, 0), sticky="ew")
+        ctk.CTkButton(btn_row, text="Clear", fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 12, "bold"), command=self.clear_form).grid(row=0, column=1, padx=(5, 0), sticky="ew")
 
     def load_dynamic_dropdowns(self):
         conn = get_connection()
@@ -120,7 +118,7 @@ class InventoryView(ctk.CTkFrame):
         table_frame.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=0)
 
         search_frame = ctk.CTkFrame(table_frame, fg_color="transparent")
-        search_frame.pack(fill="x", padx=20, pady=20)
+        search_frame.pack(fill="x", padx=20, pady=(20, 10))
 
         self.filter_menu = ctk.CTkOptionMenu(search_frame, values=["All Fields", "By: PID", "By: Name", "By: Type", "By: Supplier"], width=150, fg_color="#F9FAFB", text_color="black")
         self.filter_menu.pack(side="left", padx=(0, 10))
@@ -129,10 +127,10 @@ class InventoryView(ctk.CTkFrame):
         self.search_entry.pack(side="left")
         self.search_entry.bind("<Return>", lambda e: self.perform_search())
 
-        self.search_btn = ctk.CTkButton(search_frame, text="Search", width=80, fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", command=self.perform_search)
+        self.search_btn = ctk.CTkButton(search_frame, text="Search", width=80, fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", font=("Inter", 11, "bold"), command=self.perform_search)
         self.search_btn.pack(side="left", padx=10)
 
-        self.reset_btn = ctk.CTkButton(search_frame, text="↻ Reset", width=70, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=self.reset_search)
+        self.reset_btn = ctk.CTkButton(search_frame, text="↻ Reset", width=70, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 11, "bold"), command=self.reset_search)
         self.reset_btn.pack(side="left", padx=(0, 0))
 
         header_frame = ctk.CTkFrame(table_frame, fg_color="#1E4528", corner_radius=5, height=40)
@@ -147,7 +145,7 @@ class InventoryView(ctk.CTkFrame):
             ctk.CTkLabel(header_frame, text=text, font=("Inter", 11, "bold"), text_color="white").grid(row=0, column=col, padx=10, pady=10, sticky="w")
 
         self.data_scroll = ctk.CTkScrollableFrame(table_frame, fg_color="transparent")
-        self.data_scroll.pack(fill="both", expand=True, padx=20, pady=(10, 20))
+        self.data_scroll.pack(fill="both", expand=True, padx=20, pady=(5, 20))
 
     def load_inventory_data(self, query="", filter_type="All Fields"):
         for widget in self.data_scroll.winfo_children():
@@ -356,7 +354,7 @@ class InventoryView(ctk.CTkFrame):
 
         loc_entry = create_modal_row(form_scroll, "Location", data['location'])
 
-        ctk.CTkLabel(form_scroll, text="ℹ  For consumables (boxes, kg, sets): fractional quantities are supported.\n   e.g., set Total Qty to 2.5 if half a box was partially used.", font=("Inter", 10), text_color="#888888", justify="left", wraplength=380).pack(anchor="w", pady=(3, 5))
+        ctk.CTkLabel(form_scroll, text="ℹ  For consumables (boxes, kg, sets): fractional quantities are supported.\n   e.g., set Total Qty to 2.5 if half a box was partially used.", font=("Inter", 10), text_color="gray", justify="left", wraplength=380).pack(anchor="w", pady=(3, 5))
 
         status_frame = ctk.CTkFrame(form_scroll, fg_color="transparent")
         status_frame.pack(fill="x", pady=4)
@@ -414,9 +412,9 @@ class InventoryView(ctk.CTkFrame):
 
         btn_row = ctk.CTkFrame(modal, fg_color="transparent")
         btn_row.pack(side="bottom", fill="x", padx=25, pady=15)
-        ctk.CTkButton(btn_row, text="Update", fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", command=execute_update).pack(side="left", padx=5)
-        ctk.CTkButton(btn_row, text="Archive", fg_color="#D3B8A7", text_color="black", hover_color="#BFA595", command=execute_archive).pack(side="left", padx=5)
-        ctk.CTkButton(btn_row, text="Close", fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=modal.destroy).pack(side="right", padx=5)
+        ctk.CTkButton(btn_row, text="Update", fg_color="#F1C40F", text_color="black", hover_color="#D4AC0D", font=("Inter", 11, "bold"), command=execute_update).pack(side="left", padx=5)
+        ctk.CTkButton(btn_row, text="Archive", fg_color="#D3B8A7", text_color="black", hover_color="#BFA595", font=("Inter", 11, "bold"), command=execute_archive).pack(side="left", padx=5)
+        ctk.CTkButton(btn_row, text="Close", fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 11, "bold"), command=modal.destroy).pack(side="right", padx=5)
 
     def clear_form(self):
         self.type_menu.set("Equipment")

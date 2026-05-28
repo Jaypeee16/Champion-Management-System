@@ -247,9 +247,18 @@ class DashboardApp(ctk.CTkToplevel):
 
         try:
             cursor = conn.cursor(dictionary=True)
-            # ... (keep your existing metrics logic here) ...
+            # core metrics: total tool profiles, total available qty, currently borrowed items, and registered employees
             cursor.execute("SELECT COUNT(*) as cnt FROM tool WHERE is_archived = 0")
             metrics["total_types"] = cursor.fetchone()["cnt"] or 0
+
+            cursor.execute("SELECT IFNULL(SUM(quantity_available), 0) as qty FROM inventory")
+            metrics["available_qty"] = int(cursor.fetchone()["qty"] or 0)
+
+            cursor.execute("SELECT COUNT(*) as cnt FROM transaction WHERE type = 'Issue' AND status = 'Active'")
+            metrics["borrowed_qty"] = int(cursor.fetchone()["cnt"] or 0)
+
+            cursor.execute("SELECT COUNT(*) as cnt FROM user")
+            metrics["employees"] = int(cursor.fetchone()["cnt"] or 0)
 
             # In dashboard.py, inside get_live_metrics:
             cursor.execute("""

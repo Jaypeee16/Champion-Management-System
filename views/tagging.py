@@ -25,8 +25,8 @@ class TaggingView(ctk.CTkFrame):
         header_row = ctk.CTkFrame(main_frame, fg_color="transparent")
         header_row.pack(fill="x", padx=20, pady=(20, 10))
         
-        ctk.CTkLabel(header_row, text="Tag Management Hub", font=("Inter", 20, "bold"), text_color="#1A1A1A").pack(side="left")
-        ctk.CTkLabel(header_row, text="Click a tool to assign a tag, or use the scanner to test existing tags.", font=("Inter", 12), text_color="gray").pack(side="left", padx=15, pady=(5,0))
+        ctk.CTkLabel(header_row, text="Tag Management Hub", font=("Inter", 16, "bold"), text_color="#1A1A1A").pack(side="left")
+        ctk.CTkLabel(header_row, text="Click a tool to assign a tag, or use the scanner to test existing tags.", font=("Inter", 11), text_color="gray").pack(side="left", padx=15, pady=(5,0))
 
         search_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         search_frame.pack(fill="x", padx=20, pady=(10, 20))
@@ -38,23 +38,22 @@ class TaggingView(ctk.CTkFrame):
         self.filter_menu = ctk.CTkOptionMenu(search_frame, values=["All Tools", "Needs Tag", "Already Tagged"], width=140, fg_color="#F9FAFB", text_color="black")
         self.filter_menu.pack(side="left", padx=10)
 
-        ctk.CTkButton(search_frame, text="Search", width=80, fg_color="#1E4528", hover_color="#14301C", font=("Inter", 12, "bold"), command=self.perform_search).pack(side="left")
-        ctk.CTkButton(search_frame, text="↻ Reset", width=70, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 12, "bold"), command=self.reset_search).pack(side="left", padx=10)
+        ctk.CTkButton(search_frame, text="Search", width=80, fg_color="#F1C40F", hover_color="#D4AC0D", text_color="black", font=("Inter", 11, "bold"), command=self.perform_search).pack(side="left")
+        ctk.CTkButton(search_frame, text="↻ Reset", width=70, fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 11, "bold"), command=self.reset_search).pack(side="left", padx=10)
 
-        self.scan_test_btn = ctk.CTkButton(search_frame, text="📷 Scan & Test QR", width=140, fg_color="#3498DB", hover_color="#2980B9", font=("Inter", 12, "bold"), command=self.open_test_scanner)
+        self.scan_test_btn = ctk.CTkButton(search_frame, text="📷 Scan & Test QR", width=140, fg_color="#3498DB", hover_color="#2980B9", font=("Inter", 11, "bold"), command=self.open_test_scanner)
         self.scan_test_btn.pack(side="right", padx=10)
 
         table_header = ctk.CTkFrame(main_frame, fg_color="#1E4528", corner_radius=5, height=40)
         table_header.pack(fill="x", padx=(20, 36))
         table_header.pack_propagate(False)
 
-        # UI FIX: Swapped Description for Category and Supplier!
         self.headers = ["PID", "Name", "Category", "Supplier", "Qty", "Location", "Status", "Tag ID"]
         self.weights = [1, 2, 2, 2, 1, 2, 1, 2]
 
         for col, (text, weight) in enumerate(zip(self.headers, self.weights)):
             table_header.grid_columnconfigure(col, weight=weight)
-            ctk.CTkLabel(table_header, text=text, font=("Inter", 12, "bold"), text_color="white").grid(row=0, column=col, padx=10, pady=10, sticky="w")
+            ctk.CTkLabel(table_header, text=text, font=("Inter", 11, "bold"), text_color="white").grid(row=0, column=col, padx=10, pady=10, sticky="w")
 
         self.data_scroll = ctk.CTkScrollableFrame(main_frame, fg_color="transparent")
         self.data_scroll.pack(fill="both", expand=True, padx=20, pady=(10, 20))
@@ -98,7 +97,6 @@ class TaggingView(ctk.CTkFrame):
             for i, row_data in enumerate(results):
                 display_data = [str(item) for item in row_data[:8]] 
                 
-                # To feed the exact 10 parameters to the open_tag_manager modal safely
                 tool_id, name, cat, sup, qty, loc, cond, tag, desc, price = row_data
                 full_data = [tool_id, name, desc, price, qty, loc, cond, tag, cat, sup]
                 
@@ -136,7 +134,7 @@ class TaggingView(ctk.CTkFrame):
 
     def open_test_scanner(self):
         try:
-            cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) # Turbo mode on Windows!
+            cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
         except:
             cap = cv2.VideoCapture(0)
 
@@ -149,7 +147,6 @@ class TaggingView(ctk.CTkFrame):
             ret, frame = cap.read()
             if not ret: break
             
-            # Draw targeting UI
             height, width, _ = frame.shape
             top_left = (int(width*0.25), int(height*0.3))
             bottom_right = (int(width*0.75), int(height*0.7))
@@ -380,4 +377,4 @@ class TaggingView(ctk.CTkFrame):
         tag_entry.bind("<KeyRelease>", lambda e: update_preview())
         update_preview() 
 
-        ctk.CTkButton(modal, text="Close", fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", command=modal.destroy).pack(side="bottom", pady=20, padx=30, fill="x")
+        ctk.CTkButton(modal, text="Close", fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC", font=("Inter", 11, "bold"), command=modal.destroy).pack(side="bottom", pady=20, padx=30, fill="x")
